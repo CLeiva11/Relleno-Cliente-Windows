@@ -309,13 +309,20 @@ def _download(config, day, credentials, folder, progress):
             progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
             visible_text(page, ['ANPR']).first.click()
             progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
-            tree_root = visible_text(page, ['HikCentral Professional']).first
-            tree_root.wait_for()
+            # Se marcan todos los nodos raíz del árbol (todas las cámaras ANPR),
+            # sin depender del nombre del sitio, que cambia en cada centro.
+            roots = page.locator('li.level0 > [treenode_check]').filter(visible=True)
+            roots.first.wait_for(timeout=30000)
             # A first-use tooltip can cover the source selection.
             tooltip = page.get_by_role('button', name='OK', exact=True).filter(visible=True)
             if tooltip.count():
                 tooltip.first.click()
-            tree_root.locator('xpath=../..').locator('[treenode_check]').first.click()
+            for checkbox in roots.all():
+                if 'checkbox_true_full' not in (checkbox.get_attribute('class') or ''):
+                    checkbox.click()
+            pending = [item for item in roots.all() if 'checkbox_true' not in (item.get_attribute('class') or '')]
+            if pending:
+                raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
             progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'
             page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True).first.click()
             visible_text(page, ['Personalizado', 'Custom']).first.click()
