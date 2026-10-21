@@ -56,6 +56,48 @@ def request(camera, path, body=None):
     return response.content
 
 
+# Consultas ISAPI de solo lectura que describen lo que soporta cada Hikvision.
+# Se guardan para diagnosticar modelos nuevos (conteo, RF/rostros) sin adivinar.
+CAPABILITY_PATHS = (
+    '/ISAPI/System/capabilities',
+    '/ISAPI/System/Video/inputs/channels',
+    '/ISAPI/Smart/capabilities',
+    '/ISAPI/Intelligent/capabilities',
+    '/ISAPI/System/Video/inputs/channels/{ch}/counting/capabilities',
+    '/ISAPI/System/Video/inputs/channels/{ch}/counting',
+)
+
+
+def counting_path(channel, suffix=''):
+    return f'/ISAPI/System/Video/inputs/channels/{channel}/counting{suffix}'
+
+
+def video_channels(camera):
+    """Canales de video del equipo (cámara multilente o NVR); 1 si no los informa."""
+    try:
+        tree = xml_tree(request(camera, '/ISAPI/System/Video/inputs/channels'))
+    except CameraError:
+        return ['1']
+    ids = [node.findtext('id') for node in tree.iter('VideoInputChannel')]
+    return [value for value in ids if value and value.isdigit()] or ['1']
+
+
+def save_capabilities(camera, folder, channels):
+    folder.mkdir(parents=True, exist_ok=True)
+    summary = {}
+    for template in CAPABILITY_PATHS:
+        for channel in (channels if '{ch}' in template else [None]):
+            path = template.format(ch=channel)
+            name = path.strip('/').replace('/', '_') + '.xml'
+            try:
+                (folder / name).write_bytes(request(camera, path))
+                summary[path] = 'ok'
+            except CameraError as exc:
+                summary[path] = str(exc)
+    (folder / 'resumen.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+    return summary
+
+
 def probe(camera):
     raw = request(camera, '/ISAPI/System/deviceInfo')
     tree = xml_tree(raw)
@@ -67,11 +109,17 @@ def probe(camera):
                    firmware=tree.findtext('firmwareVersion') or '')
     # Se habilita por capacidad, no por modelo: cualquier cámara que exponga la
     # configuración ISAPI de conteo de personas usa el mismo extractor validado.
-    try:
-        settings = xml_tree(request(camera, '/ISAPI/System/Video/inputs/channels/1/counting'))
-    except CameraError:
-        settings = None
-    if settings is not None and settings.tag == 'Counting':
+    channels = video_channels(camera)
+    settings, channel = None, None
+    for candidate in channels:
+        try:
+            tree_counting = xml_tree(request(camera, counting_path(candidate)))
+        except CameraError:
+            continue
+        if tree_counting.tag == 'Counting':
+            settings, channel = tree_counting, candidate
+            break
+    if settings is not None:
         regions = settings.findall('./CountingRegionList/CountingRegion')
         if len(regions) != 1:
             raise CameraError('Este extractor requiere una única región; no se acumularon regiones.')
@@ -80,7 +128,7 @@ def probe(camera):
             raise CameraError('La cámara no entregó una región válida.')
         updated.update(source_kind='people_counter', direction='bidirectional', region='r'+region,
                        region_id=region, query_method='ISAPI counting/search · HTTP Digest',
-                       counting_enabled=settings.findtext('enabled') == 'true')
+                       counting_enabled=settings.findtext('enabled') == 'true', channel_id=channel)
     else:
         updated.update(source_kind='', counting_enabled=False)
     creds = read_secret('camera/' + camera['external_id']) or read_secret('camera-default')
@@ -89,6 +137,7 @@ def probe(camera):
     source = ROOT / 'sources' / hashlib.sha256(stable_id.encode()).hexdigest()
     source.mkdir(parents=True, exist_ok=True)
     (source / 'deviceInfo.xml').write_bytes(raw)
+    save_capabilities(camera, source / 'capacidades', channels)
     return updated
 
 
@@ -169,7 +218,7 @@ def extract_day(camera, day, timezone_name, centre_id=None):
                 ET.SubElement(span, 'endTime').text = day.isoformat() + 'T23:59:59'
                 ET.SubElement(root, 'child').text = 'false'
                 ET.SubElement(root, 'regionID').text = region
-                raw = request(camera, '/ISAPI/System/Video/inputs/channels/1/counting/search', ET.tostring(root, encoding='utf-8'))
+                raw = request(camera, counting_path(camera.get('channel_id') or '1', '/search'), ET.tostring(root, encoding='utf-8'))
                 (folder / ('source-' + uuid.uuid4().hex + '.xml')).write_bytes(raw)
                 intervals = parse_counts(raw, day, zone)
                 data = dict(schema_version=1, data_type='personas', source_kind=camera['source_kind'],

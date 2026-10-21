@@ -13,6 +13,9 @@ if __name__ == '__main__':
         autostart(active)
         if active:
             start()
+    elif '--diagnostico' in sys.argv:
+        from relleno.diagnostics import export
+        print(export())
     elif '--browser-self-test' in sys.argv:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as playwright:

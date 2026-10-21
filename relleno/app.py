@@ -277,6 +277,7 @@ class App:
         ttk.Button(buttons, text='Importar lista', command=self.import_dialog).pack(side='left')
         ttk.Button(buttons, text='Agregar / editar', command=self.edit_camera).pack(side='left', padx=8)
         ttk.Button(buttons, text='Probar todas', command=self.test_cameras).pack(side='left')
+        ttk.Button(buttons, text='Exportar diagnóstico', command=self.export_diagnostics).pack(side='left', padx=(6, 0))
         ttk.Button(buttons, text='Quitar seleccionada', command=self.remove_camera).pack(side='left', padx=8)
         credentials = ttk.LabelFrame(frame, text='Credenciales compartidas de cámaras', padding=10)
         credentials.pack(fill='x')
@@ -366,6 +367,15 @@ class App:
             self.config['cameras'].pop(int(self.table.selection()[0]))
             save(self.config)
             self.refresh()
+
+    def export_diagnostics(self):
+        from relleno.diagnostics import export
+        try:
+            target = export()
+        except Exception as exc:
+            messagebox.showerror('Diagnóstico', f'No se pudo exportar: {exc}')
+            return
+        messagebox.showinfo('Diagnóstico', f'Se guardó en el escritorio:\n{target.name}\n\nNo contiene contraseñas.')
 
     def test_cameras(self):
         cameras = list(self.config['cameras'])

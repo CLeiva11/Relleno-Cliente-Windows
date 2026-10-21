@@ -66,7 +66,7 @@ class ProbeCapabilityTests(unittest.TestCase):
         from relleno import cameras
 
         def fake_request(_camera, path, body=None):
-            value = responses[path]
+            value = responses.get(path, cameras.CameraError('La cámara respondió HTTP 404.'))
             if isinstance(value, Exception):
                 raise value
             return value
@@ -75,7 +75,9 @@ class ProbeCapabilityTests(unittest.TestCase):
                 patch.object(cameras, 'request', side_effect=fake_request), \
                 patch.object(cameras, 'read_secret', return_value={'username': 'u', 'password': 'p'}), \
                 patch.object(cameras, 'store_secret'), patch.object(cameras, 'ROOT', Path(root)):
-            return cameras.probe({'external_id': 'tmp', 'ip': '10.0.0.1', 'name': 'Acceso'})
+            camera = cameras.probe({'external_id': 'tmp', 'ip': '10.0.0.1', 'name': 'Acceso'})
+            self.saved = sorted(p.name for p in Path(root).rglob('*.xml'))
+            return camera
 
     def test_other_model_with_isapi_counting_is_people_counter(self):
         cam = self.probe({'/ISAPI/System/deviceInfo': self.DEVICE,
@@ -90,3 +92,35 @@ class ProbeCapabilityTests(unittest.TestCase):
                           '/ISAPI/System/Video/inputs/channels/1/counting': CameraError('HTTP 404')})
         self.assertEqual(cam['source_kind'], '')
         self.assertFalse(cam['counting_enabled'])
+
+    def test_counting_found_on_second_channel_and_capabilities_saved(self):
+        channels = b'<VideoInputChannelList><VideoInputChannel><id>1</id></VideoInputChannel><VideoInputChannel><id>2</id></VideoInputChannel></VideoInputChannelList>'
+        cam = self.probe({'/ISAPI/System/deviceInfo': self.DEVICE,
+                          '/ISAPI/System/Video/inputs/channels': channels,
+                          '/ISAPI/System/Video/inputs/channels/2/counting': self.COUNTING,
+                          '/ISAPI/Smart/capabilities': b'<SmartCap><isSupportFaceDetect>true</isSupportFaceDetect></SmartCap>'})
+        self.assertEqual(cam['channel_id'], '2')
+        self.assertEqual(cam['source_kind'], 'people_counter')
+        self.assertIn('ISAPI_Smart_capabilities.xml', self.saved)
+        self.assertIn('ISAPI_System_Video_inputs_channels_2_counting.xml', self.saved)
+
+
+class DiagnosticsTests(unittest.TestCase):
+    def test_export_zip_has_cameras_without_secrets(self):
+        import json, zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from relleno import diagnostics
+        config = {'binding': {'centre_id': 'eumachali', 'centre_name': 'Machali', 'agent_id': 'x'},
+                  'cameras': [{'name': 'Acceso', 'ip': '10.0.0.1', 'model': 'DS-2CD6825', 'password': 'nope'}]}
+        with tempfile.TemporaryDirectory() as root, patch.object(diagnostics, 'ROOT', Path(root)), \
+                patch.object(diagnostics, 'load', return_value=config):
+            (Path(root) / 'sources' / 'abc').mkdir(parents=True)
+            (Path(root) / 'sources' / 'abc' / 'deviceInfo.xml').write_text('<x/>')
+            target = diagnostics.export(Path(root) / 'out')
+            with zipfile.ZipFile(target) as archive:
+                names = archive.namelist()
+                cams = json.loads(archive.read('camaras.json'))
+        self.assertIn('fuentes/abc/deviceInfo.xml', names)
+        self.assertNotIn('password', cams[0])
+        self.assertEqual(cams[0]['model'], 'DS-2CD6825')
