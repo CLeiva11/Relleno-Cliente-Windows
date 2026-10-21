@@ -391,22 +391,31 @@ def _download(config, day, credentials, folder, progress):
                 export = visible_text(page, ['Exportar', 'Export']).first
                 export.click()
                 dialog = page.locator('[role=dialog]:visible')
-                # Verify Excel and no pictures: retain the native row export only.
+                if not dialog.count():
+                    # Versión nueva: panel lateral sin role=dialog; se toma el que contiene el formato.
+                    dialog = page.get_by_text(re.compile('^(Formato de archivo|File Format)$')).filter(visible=True).first.locator(
+                        "xpath=ancestor::*[.//input[@type='password']][1]")
+                dialog.first.wait_for(timeout=15000)
+                dialog = dialog.first
+                # Verify Excel and no pictures: retain the native row export only (la versión nueva parte en CSV).
                 excel = dialog.locator('input[type=radio][value="0"]')
-                if not excel.is_checked():
+                if not excel.count() or not excel.is_checked():
                     dialog.get_by_text('Excel', exact=True).click()
                 pictures = dialog.locator('input[type=checkbox]')
                 if pictures.count() and pictures.first.is_checked():
                     pictures.first.uncheck(force=True)
-                dialog.locator('input[type=password]').fill(credentials['secret'])
+                type_into(dialog.locator('input[type=password]').first, credentials['secret'], progress)
                 progress['message'] = 'HikCentral no terminó de generar o descargar el Excel ANPR.'
                 with page.expect_download(timeout=180000) as capture:
                     dialog.get_by_role('button', name=re.compile('^(Guardar|Save)$')).click()
                 download = capture.value
                 filename = Path(download.suggested_filename).name
-                expected = day.strftime('%Y%m%d') + '000000_' + day.strftime('%Y%m%d') + '235959'
-                if expected not in filename or Path(filename).suffix.lower() != '.xlsx':
-                    raise ExportError('La descarga no corresponde al día solicitado o no es Excel. No se envió.')
+                suffix = Path(filename).suffix.lower()
+                if suffix == '.zip':
+                    raise ExportError('HikCentral entregó un .zip en vez de un Excel. Use Exportar diagnóstico y envíelo.')
+                if suffix not in ('.xlsx', '.xls'):
+                    raise ExportError('La descarga de HikCentral no es Excel. No se envió.')
+                # El intervalo ya se verificó en el buscador; el nombre del archivo varía entre versiones.
                 source = folder / filename
                 download.save_as(str(source))
                 if download.failure() or not source.exists() or source.stat().st_size == 0:
