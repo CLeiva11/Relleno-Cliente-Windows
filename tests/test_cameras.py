@@ -53,3 +53,40 @@ class CameraTests(unittest.TestCase):
             self.assertEqual(request.call_count, 1)
             self.assertEqual(len(list(Path(folder).rglob('source-*.xml'))), 1)
             self.assertTrue(list(Path(folder).rglob('people.json')))
+
+
+class ProbeCapabilityTests(unittest.TestCase):
+    DEVICE = b'<DeviceInfo><serialNumber>SN1</serialNumber><model>iDS-2CD6810F</model><firmwareVersion>V5</firmwareVersion></DeviceInfo>'
+    COUNTING = b'<Counting><enabled>true</enabled><CountingRegionList><CountingRegion><id>1</id></CountingRegion></CountingRegionList></Counting>'
+
+    def probe(self, responses):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from relleno import cameras
+
+        def fake_request(_camera, path, body=None):
+            value = responses[path]
+            if isinstance(value, Exception):
+                raise value
+            return value
+
+        with tempfile.TemporaryDirectory() as root, \
+                patch.object(cameras, 'request', side_effect=fake_request), \
+                patch.object(cameras, 'read_secret', return_value={'username': 'u', 'password': 'p'}), \
+                patch.object(cameras, 'store_secret'), patch.object(cameras, 'ROOT', Path(root)):
+            return cameras.probe({'external_id': 'tmp', 'ip': '10.0.0.1', 'name': 'Acceso'})
+
+    def test_other_model_with_isapi_counting_is_people_counter(self):
+        cam = self.probe({'/ISAPI/System/deviceInfo': self.DEVICE,
+                          '/ISAPI/System/Video/inputs/channels/1/counting': self.COUNTING})
+        self.assertEqual(cam['source_kind'], 'people_counter')
+        self.assertEqual(cam['region_id'], '1')
+        self.assertTrue(cam['counting_enabled'])
+
+    def test_camera_without_counting_is_not_people_counter(self):
+        from relleno.cameras import CameraError
+        cam = self.probe({'/ISAPI/System/deviceInfo': self.DEVICE,
+                          '/ISAPI/System/Video/inputs/channels/1/counting': CameraError('HTTP 404')})
+        self.assertEqual(cam['source_kind'], '')
+        self.assertFalse(cam['counting_enabled'])

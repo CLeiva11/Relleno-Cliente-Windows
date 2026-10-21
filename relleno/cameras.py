@@ -65,8 +65,13 @@ def probe(camera):
     model = tree.findtext('model') or ''
     updated = dict(camera, external_id=stable_id, model=model,
                    firmware=tree.findtext('firmwareVersion') or '')
-    if model.startswith('DS-2CD6825'):
+    # Se habilita por capacidad, no por modelo: cualquier cámara que exponga la
+    # configuración ISAPI de conteo de personas usa el mismo extractor validado.
+    try:
         settings = xml_tree(request(camera, '/ISAPI/System/Video/inputs/channels/1/counting'))
+    except CameraError:
+        settings = None
+    if settings is not None and settings.tag == 'Counting':
         regions = settings.findall('./CountingRegionList/CountingRegion')
         if len(regions) != 1:
             raise CameraError('Este extractor requiere una única región; no se acumularon regiones.')
@@ -76,6 +81,8 @@ def probe(camera):
         updated.update(source_kind='people_counter', direction='bidirectional', region='r'+region,
                        region_id=region, query_method='ISAPI counting/search · HTTP Digest',
                        counting_enabled=settings.findtext('enabled') == 'true')
+    else:
+        updated.update(source_kind='', counting_enabled=False)
     creds = read_secret('camera/' + camera['external_id']) or read_secret('camera-default')
     store_secret('camera/' + stable_id, creds)
     updated['connection_status'] = 'Conectada'
@@ -129,8 +136,10 @@ def extract_day(camera, day, timezone_name, centre_id=None):
         day = date.fromisoformat(day)
     if day >= datetime.now(zone).date():
         raise CameraError('Seleccione un día terminado para evitar conteos parciales.')
-    if camera.get('source_kind') != 'people_counter' or not camera.get('model', '').startswith('DS-2CD6825'):
-        raise CameraError('El modelo de esta cámara aún no tiene extractor validado.')
+    if camera.get('source_kind') != 'people_counter':
+        model = camera.get('model') or 'modelo desconocido'
+        raise CameraError(f'La cámara ({model}) no expone conteo de personas por ISAPI. '
+                          'Pruebe la conexión nuevamente o informe el modelo.')
     if not camera.get('counting_enabled'):
         raise CameraError('El conteo está deshabilitado en la cámara.')
     region = str(camera.get('region_id', ''))
