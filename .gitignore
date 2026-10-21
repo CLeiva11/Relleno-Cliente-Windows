@@ -1,0 +1,14 @@
+__pycache__/
+build/
+dist/
+*.spec
+.venv/
+*.log
+config.json
+*.xlsx
+*.xls
+*.xlsm
+.build-deps/
+.tools/
+.inno-setup.exe
+.automation-deps/
