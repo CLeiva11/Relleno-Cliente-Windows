@@ -1,0 +1,43 @@
+# Instalación en un centro
+
+1. Descargue `RellenoCliente-Setup-0.3.0.exe` desde
+   [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
+   También puede copiar ese mismo archivo por USB o por el canal de distribución
+   del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
+2. Ejecute el instalador en Windows x64, con el usuario que operará el cliente.
+   No necesita instalar Python. Debe tener Microsoft Edge instalado.
+3. Genere un código nuevo en Comprobaciones del portal para el centro correspondiente.
+   Abra Relleno Cliente, vaya a Inicio y vincule ese equipo una sola vez.
+4. En HikCentral indique la dirección del servidor, usuario y contraseña con permisos
+   para buscar y exportar ANPR. `localhost` se refiere al equipo donde instala el
+   cliente; solo sirve si HikCentral está en ese mismo equipo.
+5. En ANPR elija un día terminado y pulse **Exportar de HikCentral y enviar**.
+   Compruebe que aparece **Recibido** y un comprobante del portal.
+6. Active la exportación diaria y guarde la configuración. Se procesan los días
+   terminados desde la activación, a partir de la 01:00 en la zona horaria configurada.
+   El equipo debe estar encendido y un usuario con sesión iniciada. El cliente
+   arranca con Windows y puede seguir trabajando con su ventana cerrada.
+
+El instalador es reutilizable; la configuración es propia de cada equipo. No
+copie `config.json`, la cola ni las credenciales del centro piloto a otro centro.
+El portal fija el centro por el vínculo: el cliente no ofrece elegir otra base.
+
+Reinstalar o actualizar en el mismo usuario de Windows conserva el vínculo y los
+datos locales. Desinstalar no convierte ese equipo en un equipo de otro centro.
+Actualmente no hay un cambio de centro desde la interfaz; un traslado físico de
+un equipo ya vinculado requiere gestionar el vínculo anterior y preparar un perfil
+limpio antes de usar el código del nuevo centro.
+
+Las credenciales y el token se guardan en Windows Credential Manager. Configuración,
+fuentes y cola permanecen en `%LOCALAPPDATA%/RellenoCliente`, fuera del repositorio
+y del instalador. El servidor HTTPS local del piloto tiene una huella de certificado
+provisionada en su perfil; un HikCentral con certificado privado en otro equipo
+requiere preparar su confianza HTTPS antes de exportar. Esa huella no se distribuye.
+
+La exportación web se validó en el piloto; otra versión o idioma de HikCentral
+puede requerir ajustar el adaptador. No se necesitan AppKey/SecretKey para este
+método. Los Excel originales también se pueden seleccionar y enviar directamente.
+
+El instalador todavía no tiene firma de código. Compare su SHA-256 con
+`SHA256SUMS.txt` de la misma versión si necesita comprobar la descarga.
+La recepción no corrige la base: la corrección se confirma en Comprobaciones.
