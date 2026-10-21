@@ -209,6 +209,21 @@ def save_web_diagnostic(progress, error):
             page.screenshot(path=str(folder / 'hikcentral-login.png'), full_page=True, timeout=5000)
         except Exception:
             report['screenshot_incomplete'] = True
+    if progress.get('phase') == 'authenticated':
+        try:
+            # Textos cortos de menús y botones visibles (sin valores de campos).
+            report['visible_texts'] = page.evaluate("""() => {
+                const out = new Set();
+                for (const el of document.querySelectorAll('a,button,li,span,div,[role=menuitem],[role=tab]')) {
+                    if (out.size >= 120 || el.children.length > 0) continue;
+                    const text = (el.innerText || '').trim().replace(/\\s+/g, ' ');
+                    const box = el.getBoundingClientRect();
+                    if (text && text.length <= 40 && box.width > 0 && box.height > 0) out.add(text);
+                }
+                return [...out];
+            }""")
+        except Exception:
+            report['visible_texts_incomplete'] = True
     try:
         report['title'] = page.title()
         for frame in page.frames:
@@ -275,102 +290,107 @@ def _download(config, day, credentials, folder, progress):
                 progress['page'] = new_page
                 watch_page(new_page, progress)
             context.on('page', follow)
-            page.set_default_timeout(15000)
-            progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
-            page.goto(url + '/#/', wait_until='domcontentloaded', timeout=60000)
-            progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
-            progress['phase'] = 'login_form'
             try:
-                login_frame, username, password = login_controls(page, events=progress.setdefault('events', []))
-                page = login_frame.page
-                progress['page'] = page
+                page.set_default_timeout(15000)
+                progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
+                page.goto(url + '/#/', wait_until='domcontentloaded', timeout=60000)
+                progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
+                progress['phase'] = 'login_form'
+                try:
+                    login_frame, username, password = login_controls(page, events=progress.setdefault('events', []))
+                    page = login_frame.page
+                    progress['page'] = page
+                except Exception as exc:
+                    # Capture while the browser context is still open.
+                    save_web_diagnostic(progress, exc)
+                    raise
+                progress['phase'] = 'authenticated'
+                progress['message'] = 'No se pudo escribir en los campos de acceso de HikCentral.'
+                try:
+                    type_into(username, credentials['account'], progress)
+                    type_into(password, credentials['secret'], progress)
+                except Exception as exc:
+                    save_web_diagnostic(progress, exc)
+                    raise
+                progress['message'] = 'No se encontró el botón de inicio de sesión de HikCentral.'
+                login = login_frame.get_by_role(
+                    'button', name=re.compile(r'^(Iniciar sesi[oó]n|Ingresar|Log In|Login|Log in|Sign In)$', re.I)
+                ).or_(login_frame.locator('button[type="submit"], input[type="submit"], .login-btn, .login-button')).filter(visible=True).first
+                login.click()
+                progress['message'] = 'HikCentral no aceptó el inicio de sesión. Revise usuario, contraseña y permisos.'
+                try:
+                    password.wait_for(state='hidden', timeout=30000)
+                except Exception:
+                    raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
+                progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
+                visible_text(page, ['ANPR']).first.click()
+                progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
+                # Se marcan todos los nodos raíz del árbol (todas las cámaras ANPR),
+                # sin depender del nombre del sitio, que cambia en cada centro.
+                roots = page.locator('li.level0 > [treenode_check]').filter(visible=True)
+                roots.first.wait_for(timeout=30000)
+                # A first-use tooltip can cover the source selection.
+                tooltip = page.get_by_role('button', name='OK', exact=True).filter(visible=True)
+                if tooltip.count():
+                    tooltip.first.click()
+                for checkbox in roots.all():
+                    if 'checkbox_true_full' not in (checkbox.get_attribute('class') or ''):
+                        checkbox.click()
+                pending = [item for item in roots.all() if 'checkbox_true' not in (item.get_attribute('class') or '')]
+                if pending:
+                    raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
+                progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'
+                page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True).first.click()
+                visible_text(page, ['Personalizado', 'Custom']).first.click()
+                range_inputs = page.locator('input.el-range-input').filter(visible=True)
+                if range_inputs.count() != 2:
+                    raise ExportError('La interfaz de fechas de HikCentral cambió. No se exportó un intervalo distinto.')
+                start = day.strftime('%Y/%m/%d') + ' 00:00:00'
+                end = day.strftime('%Y/%m/%d') + ' 23:59:59'
+                for entry, value in zip(range_inputs.all(), (start, end)):
+                    entry.fill(value)
+                    entry.press('Tab')
+                # Clicking outside commits the native date widget.
+                page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.click()
+                if [entry.input_value() for entry in range_inputs.all()] != [start, end]:
+                    raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
+                progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
+                with page.expect_response(lambda r: '/VehicleLogsCount' in r.url and r.request.method == 'POST', timeout=30000) as count_response:
+                    page.get_by_role('button', name=re.compile('^(Buscar|Search)$')).click()
+                response = count_response.value
+                if response.status != 200:
+                    raise ExportError('La consulta ANPR falló. No se sustituyó por cero.')
+                evidence = response.json()
+                (folder / 'search-count.json').write_text(json.dumps(evidence, ensure_ascii=False), encoding='utf-8')
+                progress['message'] = 'No se pudo abrir el diálogo de exportación ANPR de HikCentral.'
+                export = visible_text(page, ['Exportar', 'Export']).first
+                export.click()
+                dialog = page.locator('[role=dialog]:visible')
+                # Verify Excel and no pictures: retain the native row export only.
+                excel = dialog.locator('input[type=radio][value="0"]')
+                if not excel.is_checked():
+                    dialog.get_by_text('Excel', exact=True).click()
+                pictures = dialog.locator('input[type=checkbox]')
+                if pictures.count() and pictures.first.is_checked():
+                    pictures.first.uncheck(force=True)
+                dialog.locator('input[type=password]').fill(credentials['secret'])
+                progress['message'] = 'HikCentral no terminó de generar o descargar el Excel ANPR.'
+                with page.expect_download(timeout=180000) as capture:
+                    dialog.get_by_role('button', name=re.compile('^(Guardar|Save)$')).click()
+                download = capture.value
+                filename = Path(download.suggested_filename).name
+                expected = day.strftime('%Y%m%d') + '000000_' + day.strftime('%Y%m%d') + '235959'
+                if expected not in filename or Path(filename).suffix.lower() != '.xlsx':
+                    raise ExportError('La descarga no corresponde al día solicitado o no es Excel. No se envió.')
+                source = folder / filename
+                download.save_as(str(source))
+                if download.failure() or not source.exists() or source.stat().st_size == 0:
+                    raise ExportError('HikCentral no terminó de descargar el archivo original.')
+                return source, evidence
             except Exception as exc:
-                # Capture while the browser context is still open.
+                # Captura con Edge aún abierto, en cualquier etapa del flujo.
                 save_web_diagnostic(progress, exc)
                 raise
-            progress['phase'] = 'authenticated'
-            progress['message'] = 'No se pudo escribir en los campos de acceso de HikCentral.'
-            try:
-                type_into(username, credentials['account'], progress)
-                type_into(password, credentials['secret'], progress)
-            except Exception as exc:
-                save_web_diagnostic(progress, exc)
-                raise
-            progress['message'] = 'No se encontró el botón de inicio de sesión de HikCentral.'
-            login = login_frame.get_by_role(
-                'button', name=re.compile(r'^(Iniciar sesi[oó]n|Ingresar|Log In|Login|Log in|Sign In)$', re.I)
-            ).or_(login_frame.locator('button[type="submit"], input[type="submit"], .login-btn, .login-button')).filter(visible=True).first
-            login.click()
-            progress['message'] = 'HikCentral no aceptó el inicio de sesión. Revise usuario, contraseña y permisos.'
-            try:
-                password.wait_for(state='hidden', timeout=30000)
-            except Exception:
-                raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
-            progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
-            visible_text(page, ['ANPR']).first.click()
-            progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
-            # Se marcan todos los nodos raíz del árbol (todas las cámaras ANPR),
-            # sin depender del nombre del sitio, que cambia en cada centro.
-            roots = page.locator('li.level0 > [treenode_check]').filter(visible=True)
-            roots.first.wait_for(timeout=30000)
-            # A first-use tooltip can cover the source selection.
-            tooltip = page.get_by_role('button', name='OK', exact=True).filter(visible=True)
-            if tooltip.count():
-                tooltip.first.click()
-            for checkbox in roots.all():
-                if 'checkbox_true_full' not in (checkbox.get_attribute('class') or ''):
-                    checkbox.click()
-            pending = [item for item in roots.all() if 'checkbox_true' not in (item.get_attribute('class') or '')]
-            if pending:
-                raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
-            progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'
-            page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True).first.click()
-            visible_text(page, ['Personalizado', 'Custom']).first.click()
-            range_inputs = page.locator('input.el-range-input').filter(visible=True)
-            if range_inputs.count() != 2:
-                raise ExportError('La interfaz de fechas de HikCentral cambió. No se exportó un intervalo distinto.')
-            start = day.strftime('%Y/%m/%d') + ' 00:00:00'
-            end = day.strftime('%Y/%m/%d') + ' 23:59:59'
-            for entry, value in zip(range_inputs.all(), (start, end)):
-                entry.fill(value)
-                entry.press('Tab')
-            # Clicking outside commits the native date widget.
-            page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.click()
-            if [entry.input_value() for entry in range_inputs.all()] != [start, end]:
-                raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
-            progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
-            with page.expect_response(lambda r: '/VehicleLogsCount' in r.url and r.request.method == 'POST', timeout=30000) as count_response:
-                page.get_by_role('button', name=re.compile('^(Buscar|Search)$')).click()
-            response = count_response.value
-            if response.status != 200:
-                raise ExportError('La consulta ANPR falló. No se sustituyó por cero.')
-            evidence = response.json()
-            (folder / 'search-count.json').write_text(json.dumps(evidence, ensure_ascii=False), encoding='utf-8')
-            progress['message'] = 'No se pudo abrir el diálogo de exportación ANPR de HikCentral.'
-            export = visible_text(page, ['Exportar', 'Export']).first
-            export.click()
-            dialog = page.locator('[role=dialog]:visible')
-            # Verify Excel and no pictures: retain the native row export only.
-            excel = dialog.locator('input[type=radio][value="0"]')
-            if not excel.is_checked():
-                dialog.get_by_text('Excel', exact=True).click()
-            pictures = dialog.locator('input[type=checkbox]')
-            if pictures.count() and pictures.first.is_checked():
-                pictures.first.uncheck(force=True)
-            dialog.locator('input[type=password]').fill(credentials['secret'])
-            progress['message'] = 'HikCentral no terminó de generar o descargar el Excel ANPR.'
-            with page.expect_download(timeout=180000) as capture:
-                dialog.get_by_role('button', name=re.compile('^(Guardar|Save)$')).click()
-            download = capture.value
-            filename = Path(download.suggested_filename).name
-            expected = day.strftime('%Y%m%d') + '000000_' + day.strftime('%Y%m%d') + '235959'
-            if expected not in filename or Path(filename).suffix.lower() != '.xlsx':
-                raise ExportError('La descarga no corresponde al día solicitado o no es Excel. No se envió.')
-            source = folder / filename
-            download.save_as(str(source))
-            if download.failure() or not source.exists() or source.stat().st_size == 0:
-                raise ExportError('HikCentral no terminó de descargar el archivo original.')
-            return source, evidence
 
 
 def pending_days(config, now=None):
