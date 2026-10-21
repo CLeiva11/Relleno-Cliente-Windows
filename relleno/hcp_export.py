@@ -82,11 +82,13 @@ def first_visible(root, selectors):
     return None
 
 
-def login_controls(page, timeout_ms=30000):
+def login_controls(page, timeout_ms=60000):
     username_selectors = (
         '#username',
         'input[name="username"]',
         'input[name*="user" i]',
+        'input[placeholder*="usuario" i]',
+        'input[placeholder*="user" i]',
         'input[autocomplete="username"]',
         'input[type="text"]',
         'input:not([type])',
@@ -95,6 +97,8 @@ def login_controls(page, timeout_ms=30000):
         '#password',
         'input[name="password"]',
         'input[name*="pass" i]',
+        'input[placeholder*="contraseña" i]',
+        'input[placeholder*="password" i]',
         'input[autocomplete="current-password"]',
         'input[type="password"]',
     )
@@ -187,7 +191,10 @@ def _download(config, day, credentials, folder, progress):
     url = normalize_url(settings['url'])
     with sync_playwright() as playwright:
         # Use the Windows-installed Edge; never install a second browser.
-        with playwright.chromium.launch(channel='msedge', headless=True) as browser:
+        # Sin GPU, el fondo 3D (WebGL) del login de HikCentral bloquea la página en
+        # Edge en segundo plano. Se deshabilita 3D para que use su fondo estático.
+        with playwright.chromium.launch(channel='msedge', headless=True,
+                                        args=['--disable-3d-apis', '--disable-webgl', '--disable-gpu']) as browser:
             # The certificate pin was verified by check() immediately before opening Edge.
             context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
@@ -196,7 +203,7 @@ def _download(config, day, credentials, folder, progress):
             progress['page'] = page
             page.set_default_timeout(15000)
             progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
-            page.goto(url + '/', wait_until='domcontentloaded', timeout=60000)
+            page.goto(url + '/#/', wait_until='domcontentloaded', timeout=60000)
             progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
             progress['phase'] = 'login_form'
             try:
