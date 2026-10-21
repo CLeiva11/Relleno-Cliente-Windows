@@ -28,6 +28,22 @@ class AgentTests(unittest.TestCase):
         extract.assert_called_once()
         send.assert_called_once_with(config['binding'], {'batch_id': 'batch-1'})
 
+    @patch('relleno.agent.save')
+    @patch('relleno.agent.probe')
+    @patch('relleno.agent.send_batch', return_value='receipt-1')
+    @patch('relleno.agent.extract_day', return_value={'batch_id': 'batch-1'})
+    def test_people_command_reprobes_pending_camera_without_opening_ui(self, extract, send, probe, save):
+        pending = {'name': 'Castaño', 'model': '', 'source_kind': 'pending'}
+        detected = dict(pending, model='DS-2CD6825G0/C-IVS', source_kind='people_counter', counting_enabled=True)
+        probe.return_value = detected
+        config = {'binding': {'centre_id': 'centre'}, 'timezone': 'America/Santiago', 'cameras': [pending]}
+
+        self.assertEqual(generate_people(config, '2026-10-20'), ['receipt-1'])
+
+        probe.assert_called_once_with(pending)
+        save.assert_called_once_with(config)
+        extract.assert_called_once_with(detected, '2026-10-20', 'America/Santiago', 'centre')
+
     @patch('relleno.agent.generate_anpr', return_value=['receipt-anpr'])
     def test_vehicle_command_reuses_anpr_pipeline(self, generate):
         config = {'binding': {'centre_id': 'centre'}}

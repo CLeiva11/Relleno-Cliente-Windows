@@ -90,7 +90,7 @@ class App:
             try:
                 result = work()
                 self.events.put(lambda: completed(result=result))
-            except (PortalError, CameraError, AnprError, ExportError) as exc:
+            except (PortalError, CameraError, AnprError, ExportError, ValueError) as exc:
                 error = str(exc)
                 self.events.put(lambda message=error: completed(error=message))
             except Exception:
@@ -214,7 +214,11 @@ class App:
         automatic = ttk.LabelFrame(frame, text='Envío automático al iniciar Windows', padding=10)
         automatic.pack(fill='x', pady=8)
         daily = tk.BooleanVar(value=settings.get('auto_export_enabled', False))
-        ttk.Checkbutton(automatic, text='Exportar desde HikCentral y enviar cada día terminado (a partir de la 01:00)', variable=daily).pack(anchor='w', pady=3)
+        ttk.Checkbutton(
+            automatic,
+            text='Enviar ANPR de HikCentral y conteos de Personas cada día terminado (a partir de la 01:00)',
+            variable=daily,
+        ).pack(anchor='w', pady=3)
         folder = self.field(automatic, 'Carpeta donde HikCentral guarda los Excel ANPR', settings.get('watch_folder', str(ROOT / 'Exportaciones ANPR')))
         def browse():
             value = filedialog.askdirectory(title='Carpeta de exportaciones ANPR')
@@ -235,12 +239,18 @@ class App:
             since = previous.get('watch_since_ns', time.time_ns()) if str(target) == previous.get('watch_folder') else time.time_ns()
             first = previous.get('export_since', str((datetime.now(ZoneInfo(self.config['timezone']))-timedelta(days=1)).date()))
             self.config['anpr'] = previous | {'watch_folder': str(target), 'watch_enabled': enabled.get(), 'watch_since_ns': since, 'file_pattern':'*ANPR*', 'auto_export_enabled':daily.get(), 'export_since':first}
+            people = self.config.get('people', {})
+            people_first = people.get('export_since', first)
+            self.config['people'] = people | {
+                'auto_export_enabled': daily.get() and bool(self.config.get('cameras')),
+                'export_since': people_first,
+            }
             save(self.config)
             active = bool(self.config.get('binding'))
             autostart(active)
             if active:
                 start()
-            self.status_text.set('Programación guardada; el servicio permanece activo para el portal')
+            self.status_text.set('Programación de ANPR y Personas guardada; el servicio permanece activo')
         ttk.Button(automatic, text='Guardar envío automático', command=lambda: self.guarded(persist)).pack(anchor='w', pady=5)
 
     def anpr_result(self, rows):
@@ -266,7 +276,7 @@ class App:
             self.root.after(5000, self.refresh_anpr)
 
     def cameras(self, frame):
-        ttk.Label(frame, text='Pegue la lista completa una sola vez. Al probar, se detectan ID, modelo, firmware y región.').pack(anchor='w', pady=(0, 10))
+        ttk.Label(frame, text='Pegue la lista completa una sola vez. Al probar, se detectan ID, modelo, firmware y canal de conteo.').pack(anchor='w', pady=(0, 10))
         self.table = ttk.Treeview(frame, columns=('name', 'host', 'location', 'model', 'status'), show='headings', height=11)
         for key, title, width in zip(self.table['columns'], ('Cámara', 'Dirección', 'Nivel', 'Modelo', 'Estado'), (235, 140, 90, 220, 160)):
             self.table.heading(key, text=title)
@@ -344,7 +354,7 @@ class App:
             if any(c['ip'] == value['ip'] for i, c in enumerate(self.config['cameras']) if i != index):
                 raise ValueError('Esa dirección ya está en la lista.')
             if not cam or cam.get('ip') != value['ip']:
-                value.update(external_id='pending-'+hashlib.sha256(value['ip'].encode()).hexdigest()[:16], region='pending', source_kind='pending', direction='pending', connection_status='Sin probar')
+                value.update(external_id='pending-'+hashlib.sha256(value['ip'].encode()).hexdigest()[:16], source_kind='pending', direction='pending', connection_status='Sin probar')
             else:
                 value = cam | value
             if user.get() or password.get():
@@ -401,7 +411,7 @@ class App:
                 people.update(auto_export_enabled=True, export_since=str(yesterday))
             save(self.config)
             self.refresh()
-        self.background('Probando cámaras e identificando modelo y región…', work, done)
+        self.background('Probando cámaras e identificando modelo y canal de conteo…', work, done)
 
     def counts(self, frame):
         ttk.Label(frame, text='Consulta por cámara e intervalo. Se conservan las respuestas originales y los ceros reales.').pack(anchor='w')
@@ -423,18 +433,25 @@ class App:
             zone = self.config['timezone']
             centre_id = self.config.get('binding', {}).get('centre_id')
             def work():
-                batches, errors = [], []
+                batches, errors, tested = [], [], []
                 from relleno.people import send_batch
                 for camera in cameras:
+                    current = camera
                     try:
-                        batch = extract_day(camera, value, zone, centre_id)
+                        if not current.get('model') or current.get('source_kind') in {'', 'pending', None}:
+                            current = probe(current)
+                        batch = extract_day(current, value, zone, centre_id)
                         send_batch(self.config['binding'], batch)
                         batches.append(batch)
                     except CameraError as exc:
+                        current = dict(current, connection_status=str(exc))
                         errors.append(camera['name'] + ': ' + str(exc))
-                return batches, errors
+                    tested.append(current)
+                return batches, errors, tested
             def done(result):
-                batches, errors = result
+                batches, errors, tested = result
+                self.config['cameras'] = tested
+                save(self.config)
                 self.count_table.delete(*self.count_table.get_children())
                 for batch in batches:
                     for row in batch['intervals']:

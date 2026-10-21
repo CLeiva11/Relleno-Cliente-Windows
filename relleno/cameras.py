@@ -132,7 +132,7 @@ def probe(camera):
         region = regions[0].findtext('id') if regions else '1'
         if not region or not region.isdigit():
             raise CameraError('La cámara no entregó una región válida.')
-        updated.update(source_kind='people_counter', direction='bidirectional', region='r'+region,
+        updated.update(source_kind='people_counter', direction='bidirectional',
                        region_id=region, query_method='ISAPI counting/search · HTTP Digest',
                        counting_enabled=str(settings.findtext('enabled') or '').lower() == 'true',
                        counting_model_supported=supported_counting_model(model), channel_id=channel)
@@ -150,8 +150,14 @@ def probe(camera):
 
 def parse_counts(raw, day, zone):
     tree = xml_tree(raw)
-    if tree.tag != 'CountingStatisticsResult' or tree.findtext('responseStatus') != 'true':
-        raise CameraError('La consulta de conteos falló; no se generaron ceros.')
+    if tree.tag != 'CountingStatisticsResult':
+        raise CameraError('La cámara devolvió un formato estadístico no reconocido.')
+    if str(tree.findtext('responseStatus') or '').lower() != 'true':
+        detail = next((str(tree.findtext(key) or '').strip() for key in (
+            'statusString', 'subStatusCode', 'errorMsg', 'errorCode'
+        ) if str(tree.findtext(key) or '').strip()), '')
+        suffix = f' ({detail[:120]})' if detail else ''
+        raise CameraError(f'La cámara rechazó la consulta estadística{suffix}; no se generaron ceros.')
     elements = tree.findall('./matchList/matchElement')
     try:
         matches = int(tree.findtext('numOfMatches'))
@@ -200,7 +206,7 @@ def extract_day(camera, day, timezone_name, centre_id=None):
         raise CameraError('El conteo está deshabilitado en la cámara.')
     region = str(camera.get('region_id', ''))
     if not region.isdigit():
-        raise CameraError('Primero pruebe la conexión para identificar la región de conteo.')
+        raise CameraError('Primero pruebe la conexión para identificar la regla técnica de conteo.')
     key = json.dumps([centre_id, camera['external_id'], camera['source_kind'], region, camera['direction'], day.isoformat(), timezone_name], separators=(',', ':'))
     batch_id = str(uuid.uuid5(uuid.NAMESPACE_URL, key))
     folder = ROOT / 'batches' / batch_id
@@ -217,20 +223,37 @@ def extract_day(camera, day, timezone_name, centre_id=None):
                 report = folder / 'people.json'
                 if report.exists():
                     return json.loads(report.read_text(encoding='utf-8'))
-                root = ET.Element('CountingStatisticsDescription')
-                ET.SubElement(root, 'statisticType').text = 'all'
-                ET.SubElement(root, 'reportType').text = 'daily'
-                span = ET.SubElement(ET.SubElement(root, 'timeSpanList'), 'timeSpan')
-                ET.SubElement(span, 'startTime').text = day.isoformat() + 'T00:00:00'
-                ET.SubElement(span, 'endTime').text = day.isoformat() + 'T23:59:59'
-                ET.SubElement(root, 'child').text = 'false'
-                ET.SubElement(root, 'regionID').text = region
-                raw = request(camera, counting_path(camera.get('channel_id') or '1', '/search'), ET.tostring(root, encoding='utf-8'))
-                (folder / ('source-' + uuid.uuid4().hex + '.xml')).write_bytes(raw)
-                intervals = parse_counts(raw, day, zone)
+                errors = []
+                intervals = None
+                # Dedicated counters expect regionID; DeepinView global rules can
+                # reject that element. One configured region makes both queries
+                # semantically equivalent.
+                for query_region in (region, None):
+                    root = ET.Element('CountingStatisticsDescription')
+                    ET.SubElement(root, 'statisticType').text = 'all'
+                    ET.SubElement(root, 'reportType').text = 'daily'
+                    span = ET.SubElement(ET.SubElement(root, 'timeSpanList'), 'timeSpan')
+                    ET.SubElement(span, 'startTime').text = day.isoformat() + 'T00:00:00'
+                    ET.SubElement(span, 'endTime').text = day.isoformat() + 'T23:59:59'
+                    ET.SubElement(root, 'child').text = 'false'
+                    if query_region is not None:
+                        ET.SubElement(root, 'regionID').text = query_region
+                    raw = request(
+                        camera,
+                        counting_path(camera.get('channel_id') or '1', '/search'),
+                        ET.tostring(root, encoding='utf-8'),
+                    )
+                    (folder / ('source-' + uuid.uuid4().hex + '.xml')).write_bytes(raw)
+                    try:
+                        intervals = parse_counts(raw, day, zone)
+                        break
+                    except CameraError as exc:
+                        errors.append(str(exc))
+                if intervals is None:
+                    raise CameraError(' / '.join(dict.fromkeys(errors)))
                 data = dict(schema_version=1, data_type='personas', source_kind=camera['source_kind'],
                             batch_id=batch_id, timezone=timezone_name,
-                            camera={k: camera[k] for k in ('external_id', 'name', 'ip', 'region', 'direction')},
+                            camera={k: camera[k] for k in ('external_id', 'name', 'ip', 'direction')},
                             intervals=intervals)
                 temporary = folder / 'people.tmp'
                 temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -256,7 +279,7 @@ def parse_inventory(text):
             raise CameraError('La lista repite una dirección de cámara.')
         cameras.append(dict(external_id='pending-' + hashlib.sha256(host.encode()).hexdigest()[:16],
                             name=name, location=location, group=group, ip=host,
-                            region='pending', direction='pending', source_kind='pending',
+                            direction='pending', source_kind='pending',
                             model='', firmware='', query_method='Pendiente de probar conexión'))
     if not cameras:
         raise CameraError('Pegue al menos una cámara.')

@@ -31,9 +31,9 @@ def save(config):
 
 
 def validate_camera(camera, cameras, previous=None):
-    for key in ('external_id', 'name', 'ip', 'region', 'direction', 'source_kind'):
+    for key in ('external_id', 'name', 'ip', 'direction', 'source_kind'):
         if not camera.get(key, '').strip():
-            raise ValueError('Complete ID, nombre, dirección de red, región, dirección y tipo.')
+            raise ValueError('Complete ID, nombre, dirección de red, dirección y tipo.')
     if camera['source_kind'] not in ('people_counter', 'rf_counter', 'anpr'):
         raise ValueError('Tipo de cámara inválido.')
     if any(c['external_id'] == camera['external_id'] and c['external_id'] != previous for c in cameras):

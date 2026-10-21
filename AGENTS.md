@@ -30,7 +30,8 @@ Entradas y Salidas por cámara e intervalo.
 - No guardar IP privadas, usuarios, contraseñas, tokens o códigos reales en Git.
 - Guardar secretos con Windows Credential Manager, por ejemplo mediante `keyring`.
 - Nunca enviar credenciales de cámaras o HikCentral al portal.
-- Mantener datos separados por cámara, región, dirección e intervalo.
+- Mantener datos separados por cámara, dirección e intervalo. La región comercial
+  pertenece a la tabla `camaras` del portal y no se define en Windows.
 - `0` es válido. Una consulta fallida o sin dato no debe convertirse en cero.
 - Conservar archivos y respuestas fuente hasta que el servidor confirme recepción.
 - La plataforma decide el mapeo, comparación, reglas especiales y corrección.
@@ -122,7 +123,6 @@ Contrato vigente para `people_count_url`:
     "external_id": "id-estable-hikvision",
     "name": "Nombre original",
     "ip": "IP local informativa",
-    "region": "r1",
     "direction": "bidirectional"
   },
   "intervals": [
@@ -145,7 +145,7 @@ Solicitar por centro:
 
 - Nombre y código del centro en SIEM.
 - Zona horaria y periodicidad requerida.
-- ID, nombre, IP, región y dirección de cada cámara.
+- ID, nombre, IP y dirección de cada cámara.
 - Tipo por cámara: `people_counter`, `rf_counter` o `anpr`.
 - Modelo y firmware de cada cámara de Personas.
 - Forma actual de consultar el conteo en su portal web.
@@ -195,7 +195,8 @@ Personas produce lotes JSON cámara por cámara y Vehículos conserva archivos A
 
 - Una actualización conserva el vínculo y reactiva el servicio en el inicio de Windows.
 - El token y las credenciales nunca quedan en archivos de texto o logs.
-- Cada cámara se identifica de manera estable y conserva su región/dirección.
+- Cada cámara se identifica de manera estable por ID/IP; el portal obtiene su
+  región desde la base y conserva la dirección del conteo.
 - Personas diferencia cero real de dato ausente.
 - ANPR conserva el archivo original y admite español e inglés.
 - La pérdida de red o un reinicio no pierde ni duplica lotes.

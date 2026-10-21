@@ -14,10 +14,10 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
-## Instalador 0.4.2
+## Instalador 0.4.3
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El archivo es `RellenoCliente-Setup-0.4.2.exe`. Incluye exportación ANPR diaria
+El archivo es `RellenoCliente-Setup-0.4.3.exe`. Incluye exportación ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de
 desarrollo después de instalar. Usa Microsoft Edge instalado en Windows.
@@ -37,6 +37,9 @@ que expongan el contrato ISAPI validado, incluidos DS-2CD6825G0/C-IVS e
 iDS-2CD7146G0-IZS. El servicio
 reporta su conexión al portal y acepta órdenes de generación de Personas o ANPR,
 además de conservar la programación ANPR existente y permitir programar Personas.
+La opción general de envío diario activa ambos canales disponibles. El cliente
+identifica cada cámara por ID/IP; la región comercial se obtiene de la tabla
+`camaras` en el portal y no se envía desde Windows.
 
 ## Estado de integración
 

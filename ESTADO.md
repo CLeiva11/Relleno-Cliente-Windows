@@ -1,6 +1,6 @@
-# Entrega 0.4.2
+# Entrega 0.4.3
 
-Ejecute `dist/RellenoCliente-Setup-0.4.2.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.3.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
@@ -86,7 +86,10 @@ Personas se envía cámara por cámara al endpoint autenticado y conserva Entrad
 Salidas e intervalos horarios. La detección se hace por capacidad ISAPI y contempla
 DS-2CD6825G0/C-IVS e iDS-2CD7146G0-IZS, incluso cuando el segundo expone una regla
 global sin `CountingRegionList`. La programación diaria se ejecuta desde la 01:00,
-conserva pendientes tras reinicios y no transforma fallos en conteos cero.
+conserva pendientes tras reinicios y no transforma fallos en conteos cero. La
+casilla general programa ANPR y Personas cuando ambos canales están configurados.
+La región del centro no forma parte del lote: el portal la resuelve desde `camaras`
+después de identificar el dispositivo por ID/IP.
 
 La API oficial es una alternativa que requiere AppKey/SecretKey y permisos propios;
 la exportación web validada utiliza el usuario y contraseña ya disponibles.

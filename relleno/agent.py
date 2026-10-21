@@ -1,8 +1,8 @@
 """Portal heartbeat and remote generation commands for the Windows worker."""
-from relleno.cameras import extract_day
+from relleno.cameras import extract_day, probe
 from relleno.people import send_batch
 from relleno.portal import CLIENT_VERSION, agent_post
-from relleno.storage import read_secret
+from relleno.storage import read_secret, save
 
 
 def capabilities(config):
@@ -41,14 +41,30 @@ def complete_command(config, command, state, message, receipt_ids=None):
 
 
 def generate_people(config, day):
+    refreshed = []
+    errors = []
+    probed = False
+    for camera in config.get('cameras', []):
+        current = camera
+        if current.get('source_kind') in {'', 'pending', None} or not current.get('counting_enabled'):
+            probed = True
+            try:
+                current = probe(current)
+            except Exception as exc:
+                current = dict(current, connection_status=str(exc))
+                errors.append(f"{camera.get('name', 'Cámara')}: {exc}")
+        refreshed.append(current)
+    if probed:
+        config['cameras'] = refreshed
+        save(config)
     cameras = [
-        camera for camera in config.get('cameras', [])
+        camera for camera in refreshed
         if camera.get('counting_enabled') and camera.get('source_kind') == 'people_counter'
     ]
     if not cameras:
-        raise ValueError('No hay cámaras de Personas configuradas y habilitadas.')
+        detail = ' | '.join(errors[:5])
+        raise ValueError(detail or 'No hay cámaras de Personas configuradas y habilitadas.')
     receipts = []
-    errors = []
     for camera in cameras:
         try:
             batch = extract_day(
