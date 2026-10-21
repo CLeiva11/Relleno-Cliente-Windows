@@ -137,6 +137,17 @@ def safe_url(value):
         return ''
 
 
+def tree_root_checked(row):
+    """True si la raíz quedó marcada completa (no parcial) en cualquiera de los árboles."""
+    return bool(row.evaluate("""r => {
+        const input = r.querySelector('input[type=checkbox]');
+        if (input) return input.checked && !input.indeterminate;
+        const box = r.querySelector('[treenode_check],[class*=checkbox]');
+        const cls = box && typeof box.className === 'string' ? box.className : '';
+        return /checkbox_true_full|(^|\\s)(is-checked|checked)(\\s|$)/.test(cls) && !/part|indeterminate|half/.test(cls);
+    }"""))
+
+
 def type_into(field, value, progress):
     """HikCentral deja sus campos en solo lectura hasta recibir foco (evita autocompletar)."""
     field.click(timeout=5000)
@@ -324,23 +335,33 @@ def _download(config, day, credentials, folder, progress):
                     raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
                 progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
                 visible_text(page, ['ANPR']).first.click()
+                # En versiones nuevas el módulo abre un menú lateral; se entra a la búsqueda de pasos.
+                search_menu = visible_text(page, ['Búsqueda de paso de vehículos', 'Vehicle Passing Search'])
+                try:
+                    search_menu.first.wait_for(timeout=10000)
+                    search_menu.first.click()
+                except Exception:
+                    pass  # Versión del piloto: ANPR abre directamente la búsqueda.
                 progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
-                # Se marcan todos los nodos raíz del árbol (todas las cámaras ANPR),
-                # sin depender del nombre del sitio, que cambia en cada centro.
-                roots = page.locator('li.level0 > [treenode_check]').filter(visible=True)
-                roots.first.wait_for(timeout=30000)
+                root = visible_text(page, ['HikCentral Professional']).first
+                root.wait_for(timeout=30000)
                 # A first-use tooltip can cover the source selection.
                 tooltip = page.get_by_role('button', name='OK', exact=True).filter(visible=True)
                 if tooltip.count():
                     tooltip.first.click()
-                for checkbox in roots.all():
-                    if 'checkbox_true_full' not in (checkbox.get_attribute('class') or ''):
-                        checkbox.click()
-                pending = [item for item in roots.all() if 'checkbox_true' not in (item.get_attribute('class') or '')]
-                if pending:
+                # Fila de la raíz: el ancestro más cercano que contiene su casilla (árbol zTree o el de la versión nueva).
+                row = root.locator("xpath=ancestor::*[.//*[@treenode_check or @type='checkbox' or contains(@class,'checkbox')]][1]")
+                if not tree_root_checked(row):
+                    row.locator("[treenode_check], [class*=checkbox], input[type=checkbox]").first.click()
+                if not tree_root_checked(row):
                     raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
                 progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'
-                page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True).first.click()
+                placeholder = page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True)
+                if placeholder.count():
+                    placeholder.first.click()
+                else:
+                    # Versión nueva: el selector muestra "Hoy"; es el primer campo bajo "Tiempo".
+                    page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.locator('xpath=following::input[1]').click()
                 visible_text(page, ['Personalizado', 'Custom']).first.click()
                 range_inputs = page.locator('input.el-range-input').filter(visible=True)
                 if range_inputs.count() != 2:
@@ -350,12 +371,16 @@ def _download(config, day, credentials, folder, progress):
                 for entry, value in zip(range_inputs.all(), (start, end)):
                     entry.fill(value)
                     entry.press('Tab')
-                # Clicking outside commits the native date widget.
-                page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.click()
+                accept = page.get_by_role('button', name=re.compile(r'^(Aceptar|OK|Confirmar|Confirm)$')).filter(visible=True)
+                if accept.count():
+                    accept.first.click()
+                else:
+                    # Clicking outside commits the native date widget.
+                    page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.click()
                 if [entry.input_value() for entry in range_inputs.all()] != [start, end]:
                     raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
                 progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
-                with page.expect_response(lambda r: '/VehicleLogsCount' in r.url and r.request.method == 'POST', timeout=30000) as count_response:
+                with page.expect_response(lambda r: r.request.method == 'POST' and re.search(r'VehicleLogsCount|vehicle\w*count|passing\w*count', r.url, re.I), timeout=30000) as count_response:
                     page.get_by_role('button', name=re.compile('^(Buscar|Search)$')).click()
                 response = count_response.value
                 if response.status != 200:
