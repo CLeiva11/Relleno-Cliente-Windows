@@ -48,11 +48,13 @@ class ExportTests(unittest.TestCase):
             download(self.config(), date(2026, 10, 20), {'account':'user','secret':'private'}, Path('.'))
         self.assertNotIn('secret browser output', str(failure.exception))
 
-    @patch('relleno.hcp_export.time.monotonic', side_effect=[0, 0])
+    @patch('relleno.hcp_export.time.monotonic', side_effect=[0, 0, 0, 0])
     def test_login_controls_are_found_inside_frame(self, clock):
         page = Mock()
         frame = Mock()
         page.frames = [frame]
+        page.is_closed.return_value = False
+        page.context.pages = [page]
         username = Mock()
         password = Mock()
 
@@ -72,6 +74,15 @@ class ExportTests(unittest.TestCase):
 
         frame.locator.side_effect = locator
         found_frame, found_user, found_password = login_controls(page, timeout_ms=1)
+        self.assertIs(found_frame, frame)
+
+        # HikCentral abre el login en otra pestaña y cierra la original.
+        original = Mock()
+        original.is_closed.return_value = True
+        original.frames = []
+        page.context.pages = [original, page]
+        original.context = page.context
+        found_frame, _user, _password = login_controls(original, timeout_ms=1)
         self.assertIs(found_frame, frame)
         self.assertIs(found_user, username)
         self.assertIs(found_password, password)

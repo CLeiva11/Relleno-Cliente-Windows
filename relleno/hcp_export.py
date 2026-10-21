@@ -105,7 +105,10 @@ def login_controls(page, timeout_ms=60000):
     )
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
-        for frame in page.frames:
+        # HikCentral puede abrir el login en otra pestaña y cerrar la original.
+        pages = [item for item in page.context.pages if not item.is_closed()] or [page]
+        frames = [frame for item in reversed(pages) for frame in item.frames]
+        for frame in frames:
             try:
                 password = first_visible(frame, password_selectors)
                 username = first_visible(frame, username_selectors)
@@ -114,7 +117,7 @@ def login_controls(page, timeout_ms=60000):
                 continue
             if username is not None and password is not None:
                 return frame, username, password
-        page.wait_for_timeout(250)
+        time.sleep(0.25)
     raise ExportError(
         'HikCentral cargó, pero no mostró su formulario de acceso. Revise que la URL abra el portal web y no OpenAPI.'
     )
@@ -235,10 +238,17 @@ def _download(config, day, credentials, folder, progress):
             # The certificate pin was verified by check() immediately before opening Edge.
             context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
-                                          viewport={'width':1440, 'height':1000}, accept_downloads=True)
+                                          viewport={'width':1440, 'height':1000}, accept_downloads=True,
+                                          service_workers='block')
             page = context.new_page()
             progress['page'] = page
             watch_page(page, progress)
+
+            def follow(new_page):
+                progress.setdefault('events', []).append(f'newpage {safe_url(new_page.url)}')
+                progress['page'] = new_page
+                watch_page(new_page, progress)
+            context.on('page', follow)
             page.set_default_timeout(15000)
             progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
             page.goto(url + '/#/', wait_until='domcontentloaded', timeout=60000)
@@ -246,6 +256,8 @@ def _download(config, day, credentials, folder, progress):
             progress['phase'] = 'login_form'
             try:
                 login_frame, username, password = login_controls(page)
+                page = login_frame.page
+                progress['page'] = page
             except Exception as exc:
                 # Capture while the browser context is still open.
                 save_web_diagnostic(progress, exc)
