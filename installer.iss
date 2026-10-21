@@ -12,6 +12,8 @@ SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\RellenoCliente.exe
 ArchitecturesAllowed=x64compatible
+CloseApplications=force
+RestartApplications=no
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -29,3 +31,27 @@ Name: "{userdesktop}\Relleno Cliente"; Filename: "{app}\RellenoCliente.exe"; Tas
 [Run]
 Filename: "{app}\RellenoCliente.exe"; Parameters: "--resume-agent"; Flags: runhidden waituntilterminated
 Filename: "{app}\RellenoCliente.exe"; Description: "Configurar centro y cámaras"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// El servicio en segundo plano no tiene ventana y bloquea los archivos al
+// actualizar: se cierra antes de copiar y [Run] lo vuelve a iniciar.
+procedure StopRellenoCliente();
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM RellenoCliente.exe', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1500);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  StopRellenoCliente();
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  StopRellenoCliente();
+  Result := True;
+end;
