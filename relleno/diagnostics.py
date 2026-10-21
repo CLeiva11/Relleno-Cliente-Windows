@@ -27,4 +27,9 @@ def export(destination=None):
             for path in sources.rglob('*'):
                 if path.is_file():
                     archive.write(path, Path('fuentes') / path.relative_to(sources))
+        web = ROOT / 'diagnostics'
+        if web.exists():
+            for path in web.iterdir():
+                if path.is_file():
+                    archive.write(path, Path('hikcentral') / path.name)
     return target

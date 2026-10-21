@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import time
+from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 from relleno.storage import ROOT, read_secret
@@ -110,15 +111,67 @@ def login_controls(page, timeout_ms=30000):
     )
 
 
+def safe_url(value):
+    try:
+        parsed = urlsplit(str(value))
+        host = parsed.hostname or ''
+        if parsed.port:
+            host += f':{parsed.port}'
+        return urlunsplit((parsed.scheme, host, parsed.path, '', ''))
+    except (TypeError, ValueError):
+        return ''
+
+
+def save_web_diagnostic(progress, error):
+    page = progress.get('page')
+    if page is None:
+        return None
+    folder = ROOT / 'diagnostics'
+    folder.mkdir(parents=True, exist_ok=True)
+    report = {
+        'stage': progress.get('message'),
+        'error_type': type(error).__name__,
+        'page_url': safe_url(getattr(page, 'url', '')),
+        'title': '',
+        'frames': [],
+    }
+    try:
+        report['title'] = page.title()
+        for frame in page.frames:
+            fields = []
+            inputs = frame.locator('input')
+            for index in range(min(inputs.count(), 30)):
+                item = inputs.nth(index)
+                fields.append({
+                    'type': item.get_attribute('type') or '',
+                    'id': item.get_attribute('id') or '',
+                    'name': item.get_attribute('name') or '',
+                    'placeholder': item.get_attribute('placeholder') or '',
+                    'visible': item.is_visible(),
+                })
+            report['frames'].append({'url': safe_url(frame.url), 'inputs': fields})
+        if progress.get('phase') == 'login_form':
+            page.screenshot(path=str(folder / 'hikcentral-login.png'), full_page=True)
+    except Exception:
+        report['inspection_incomplete'] = True
+    target = folder / 'hikcentral-web.json'
+    target.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    return target
+
+
 def download(config, day, credentials, folder):
     progress = {'message': 'No se pudo iniciar Microsoft Edge para abrir HikCentral.'}
     try:
         return _download(config, day, credentials, folder, progress)
-    except ExportError:
-        raise
-    except Exception:
+    except ExportError as exc:
+        diagnostic = save_web_diagnostic(progress, exc)
+        suffix = ' Use Exportar diagnóstico en la pestaña Cámaras.' if diagnostic else ''
+        raise ExportError(str(exc) + suffix) from None
+    except Exception as exc:
         # Browser exceptions may contain selectors, page content or entered values.
-        raise ExportError(progress['message']) from None
+        diagnostic = save_web_diagnostic(progress, exc)
+        suffix = ' Use Exportar diagnóstico en la pestaña Cámaras.' if diagnostic else ''
+        raise ExportError(progress['message'] + suffix) from None
 
 
 def _download(config, day, credentials, folder, progress):
@@ -133,11 +186,14 @@ def _download(config, day, credentials, folder, progress):
                                           timezone_id=config.get('timezone', 'America/Santiago'),
                                           viewport={'width':1440, 'height':1000}, accept_downloads=True)
             page = context.new_page()
+            progress['page'] = page
             page.set_default_timeout(15000)
             progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
             page.goto(url + '/', wait_until='domcontentloaded', timeout=60000)
             progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
+            progress['phase'] = 'login_form'
             login_frame, username, password = login_controls(page)
+            progress['phase'] = 'authenticated'
             username.fill(credentials['account'])
             password.fill(credentials['secret'])
             progress['message'] = 'No se encontró el botón de inicio de sesión de HikCentral.'
