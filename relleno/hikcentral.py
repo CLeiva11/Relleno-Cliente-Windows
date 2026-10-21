@@ -1,4 +1,7 @@
-from urllib.parse import urlsplit
+import hashlib
+import socket
+import ssl
+from urllib.parse import urljoin, urlsplit
 import requests
 from requests.adapters import HTTPAdapter
 
@@ -12,6 +15,28 @@ def normalize_url(value):
         raise ValueError('Ingrese una dirección de HikCentral sin credenciales ni parámetros.')
     parsed.port  # Validate the optional port before opening a connection.
     return value
+
+
+def read_certificate_fingerprint(value):
+    url = normalize_url(value)
+    parsed = urlsplit(url)
+    if parsed.scheme != 'https':
+        raise ValueError('La huella de certificado solo corresponde a una dirección HTTPS.')
+    port = parsed.port or 443
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    try:
+        with socket.create_connection((parsed.hostname, port), timeout=5) as raw:
+            with context.wrap_socket(raw, server_hostname=parsed.hostname) as secured:
+                certificate = secured.getpeercert(binary_form=True)
+    except (TimeoutError, socket.timeout):
+        raise ValueError('HikCentral no respondió al leer su certificado. Revise IP, puerto y firewall.') from None
+    except OSError:
+        raise ValueError('No se pudo leer el certificado de HikCentral en la dirección configurada.') from None
+    if not certificate:
+        raise ValueError('HikCentral no entregó un certificado HTTPS.')
+    return hashlib.sha256(certificate).hexdigest()
 
 
 class PinnedAdapter(HTTPAdapter):
@@ -29,17 +54,42 @@ def check(settings):
     parsed = urlsplit(url)
     with requests.Session() as session:
         verify = True
-        # A pin provisioned on this machine is valid only for the local server.
-        if parsed.scheme == 'https' and parsed.hostname in ('127.0.0.1', 'localhost', '::1') and settings.get('certificate_sha256'):
+        # Private HikCentral certificates are accepted only when their saved pin matches.
+        if parsed.scheme == 'https' and settings.get('certificate_sha256'):
             session.mount(url, PinnedAdapter(settings['certificate_sha256']))
             verify = False  # Certificate is verified by its SHA-256 fingerprint.
         session.trust_env = False
         try:
-            response = session.get(url, timeout=(5, 15), allow_redirects=False, verify=verify)
+            current = url
+            for _ in range(5):
+                response = session.get(current, timeout=(5, 15), allow_redirects=False, verify=verify)
+                if response.status_code not in {301, 302, 303, 307, 308}:
+                    break
+                location = str(response.headers.get('Location') or '').strip()
+                if not location:
+                    raise ValueError('HikCentral devolvió una redirección sin destino.')
+                target = urljoin(current + '/', location)
+                source, destination = urlsplit(url), urlsplit(target)
+                source_port = source.port or (443 if source.scheme == 'https' else 80)
+                target_port = destination.port or (443 if destination.scheme == 'https' else 80)
+                if (destination.scheme, destination.hostname, target_port) != (
+                    source.scheme, source.hostname, source_port
+                ):
+                    raise ValueError('HikCentral redirigió hacia otro servidor; revise la URL configurada.')
+                current = target
+            else:
+                raise ValueError('HikCentral excedió el máximo de redirecciones.')
         except requests.exceptions.SSLError:
             raise ValueError('No se pudo verificar el certificado de HikCentral. Revise su certificado o la huella local configurada.') from None
-        except requests.RequestException:
+        except requests.exceptions.ConnectTimeout:
+            raise ValueError('HikCentral no respondió al intentar conectar. Revise IP, puerto y firewall.') from None
+        except requests.exceptions.ReadTimeout:
+            raise ValueError('HikCentral aceptó la conexión, pero no respondió dentro de 15 segundos.') from None
+        except requests.exceptions.ConnectionError:
             raise ValueError('No se pudo conectar a HikCentral. Revise la dirección y el puerto.') from None
-        if response.status_code != 200 or 'Web Client' not in response.text:
+        except requests.RequestException:
+            raise ValueError('La conexión HTTP con HikCentral no pudo completarse.') from None
+        page = str(response.text or '').lower()
+        if response.status_code != 200 or not any(marker in page for marker in ('hikcentral', 'web client')):
             raise ValueError(f'El destino no devolvió el portal web de HikCentral (HTTP {response.status_code}).')
     return 'Portal web accesible. Autenticación y extracción ANPR pendientes de validar.'

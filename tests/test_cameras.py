@@ -27,6 +27,11 @@ class CameraTests(unittest.TestCase):
             with self.assertRaises(CameraError):
                 parse_counts(raw, date(2026, 10, 19), ZoneInfo('America/Santiago'))
 
+    def test_failed_statistics_include_hikvision_status(self):
+        raw = b'<CountingStatisticsResult><responseStatus>false</responseStatus><statusString>Invalid XML Content</statusString></CountingStatisticsResult>'
+        with self.assertRaisesRegex(CameraError, 'Invalid XML Content'):
+            parse_counts(raw, date(2026, 10, 19), ZoneInfo('America/Santiago'))
+
     def test_wrong_day_and_ambiguous_dst_are_rejected(self):
         with self.assertRaises(CameraError):
             parse_counts(report(), date(2026, 10, 18), ZoneInfo('America/Santiago'))
@@ -54,9 +59,26 @@ class CameraTests(unittest.TestCase):
             first = extract_day(cam, '2026-10-19', 'America/Santiago', 'test-centre')
             second = extract_day(cam, '2026-10-19', 'America/Santiago', 'test-centre')
             self.assertEqual(first, second)
+            self.assertNotIn('region', first['camera'])
             self.assertEqual(request.call_count, 1)
             self.assertEqual(len(list(Path(folder).rglob('source-*.xml'))), 1)
             self.assertTrue(list(Path(folder).rglob('people.json')))
+
+    @patch('relleno.cameras.request')
+    def test_global_counting_fallback_omits_region_id(self, request):
+        from relleno.cameras import extract_day
+        failed = b'<CountingStatisticsResult><responseStatus>false</responseStatus><statusString>Invalid regionID</statusString></CountingStatisticsResult>'
+        request.side_effect = [failed, report()]
+        cam = dict(external_id='global-test', model='iDS-2CD7146G0-IZS', source_kind='people_counter',
+                   counting_enabled=True, region_id='1', channel_id='1', name='Prueba',
+                   ip='camera.invalid', region='r1', direction='bidirectional')
+        with tempfile.TemporaryDirectory() as folder, patch('relleno.cameras.ROOT', Path(folder)):
+            result = extract_day(cam, '2026-10-19', 'America/Santiago', 'test-centre')
+        self.assertEqual(result['intervals'][0]['exits'], 3)
+        first_body = request.call_args_list[0].args[2]
+        second_body = request.call_args_list[1].args[2]
+        self.assertIn(b'<regionID>1</regionID>', first_body)
+        self.assertNotIn(b'<regionID>', second_body)
 
 
 class ProbeCapabilityTests(unittest.TestCase):

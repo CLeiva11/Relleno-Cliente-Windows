@@ -75,12 +75,11 @@ def download(config, day, credentials, folder):
     from playwright.sync_api import sync_playwright
     settings = config['hikcentral']
     url = normalize_url(settings['url'])
-    from urllib.parse import urlsplit
-    local = urlsplit(url).hostname in ('127.0.0.1', 'localhost', '::1')
     with sync_playwright() as playwright:
         # Use the Windows-installed Edge; never install a second browser.
         with playwright.chromium.launch(channel='msedge', headless=True) as browser:
-            context = browser.new_context(ignore_https_errors=local and bool(settings.get('certificate_sha256')),
+            # The certificate pin was verified by check() immediately before opening Edge.
+            context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
                                           viewport={'width':1440, 'height':1000}, accept_downloads=True)
             page = context.new_page()

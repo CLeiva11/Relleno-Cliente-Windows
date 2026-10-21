@@ -1,6 +1,6 @@
-# Entrega 0.4.2
+# Entrega 0.4.3
 
-Ejecute `dist/RellenoCliente-Setup-0.4.2.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.3.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
@@ -10,10 +10,12 @@ En Cámaras, importe cuatro columnas (Nombre, Nivel, Grupo, IP), guarde credenci
 compartidas y pulse Probar todas. Se detectan ID estable, modelo, firmware y región.
 Puede agregar/editar o quitar cámaras; cada una admite credenciales propias.
 Nivel y grupo se conservan separados de la región de conteo detectada.
-En HikCentral, configure dirección y autenticación y pruebe el acceso web.
+En HikCentral, configure dirección y autenticación y pruebe el acceso web. Si usa
+un certificado privado, confirme primero su huella con **Confiar en certificado
+local**.
 Las direcciones sin protocolo se completan con HTTPS. La prueba web no autentica
-al usuario. La exportación se valida desde ANPR. Para el servidor local del piloto se
-registró una huella de certificado; no se desactiva TLS del portal de Relleno.
+al usuario. La exportación se valida desde ANPR. La huella confirmada solo autoriza
+el certificado de ese HikCentral; no desactiva TLS del portal de Relleno.
 
 Los secretos se guardan exclusivamente en Windows Credential Manager con prefijo
 `RellenoCliente/`. Cargue AppKey/SecretKey allí si la API disponible las requiere;
@@ -86,7 +88,10 @@ Personas se envía cámara por cámara al endpoint autenticado y conserva Entrad
 Salidas e intervalos horarios. La detección se hace por capacidad ISAPI y contempla
 DS-2CD6825G0/C-IVS e iDS-2CD7146G0-IZS, incluso cuando el segundo expone una regla
 global sin `CountingRegionList`. La programación diaria se ejecuta desde la 01:00,
-conserva pendientes tras reinicios y no transforma fallos en conteos cero.
+conserva pendientes tras reinicios y no transforma fallos en conteos cero. La
+casilla general programa ANPR y Personas cuando ambos canales están configurados.
+La región del centro no forma parte del lote: el portal la resuelve desde `camaras`
+después de identificar el dispositivo por ID/IP.
 
 La API oficial es una alternativa que requiere AppKey/SecretKey y permisos propios;
 la exportación web validada utiliza el usuario y contraseña ya disponibles.

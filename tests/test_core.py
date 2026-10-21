@@ -23,7 +23,7 @@ class CoreTests(unittest.TestCase):
         )
 
     def test_inventory_and_atomic_save(self):
-        camera = dict(external_id='test', name='Prueba', ip='camera.invalid', region='r1', direction='bidirectional', source_kind='rf_counter')
+        camera = dict(external_id='test', name='Prueba', ip='camera.invalid', direction='bidirectional', source_kind='rf_counter')
         storage.validate_camera(camera, [])
         with self.assertRaises(ValueError):
             storage.validate_camera(camera, [camera])

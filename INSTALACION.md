@@ -1,6 +1,6 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.4.2.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.3.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
@@ -36,9 +36,10 @@ limpio antes de usar el código del nuevo centro.
 
 Las credenciales y el token se guardan en Windows Credential Manager. Configuración,
 fuentes y cola permanecen en `%LOCALAPPDATA%/RellenoCliente`, fuera del repositorio
-y del instalador. El servidor HTTPS local del piloto tiene una huella de certificado
-provisionada en su perfil; un HikCentral con certificado privado en otro equipo
-requiere preparar su confianza HTTPS antes de exportar. Esa huella no se distribuye.
+y del instalador. Cuando HikCentral usa un certificado privado o autofirmado, use
+**Confiar en certificado local**, confirme su huella SHA-256 y luego pruebe la
+conexión. La confianza queda limitada a ese certificado y se invalida al cambiar
+la dirección configurada.
 
 La exportación web se validó en el piloto; otra versión o idioma de HikCentral
 puede requerir ajustar el adaptador. No se necesitan AppKey/SecretKey para este
