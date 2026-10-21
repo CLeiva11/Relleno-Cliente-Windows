@@ -2,10 +2,10 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from relleno.anpr import Outbox
-from relleno.hcp_export import download, export_day, pending_days, ExportError
+from relleno.hcp_export import download, export_day, login_controls, pending_days, ExportError
 from relleno.anpr_schedule import Scheduler
 
 
@@ -47,6 +47,34 @@ class ExportTests(unittest.TestCase):
         with self.assertRaisesRegex(ExportError, 'iniciar Microsoft Edge') as failure:
             download(self.config(), date(2026, 10, 20), {'account':'user','secret':'private'}, Path('.'))
         self.assertNotIn('secret browser output', str(failure.exception))
+
+    @patch('relleno.hcp_export.time.monotonic', side_effect=[0, 0])
+    def test_login_controls_are_found_inside_frame(self, clock):
+        page = Mock()
+        frame = Mock()
+        page.frames = [frame]
+        username = Mock()
+        password = Mock()
+
+        def locator(selector):
+            collection = Mock()
+            if selector == '#username':
+                collection.count.return_value = 1
+                collection.nth.return_value = username
+                username.is_visible.return_value = True
+            elif selector == '#password':
+                collection.count.return_value = 1
+                collection.nth.return_value = password
+                password.is_visible.return_value = True
+            else:
+                collection.count.return_value = 0
+            return collection
+
+        frame.locator.side_effect = locator
+        found_frame, found_user, found_password = login_controls(page, timeout_ms=1)
+        self.assertIs(found_frame, frame)
+        self.assertIs(found_user, username)
+        self.assertIs(found_password, password)
 
     @patch('relleno.anpr_schedule.pending_days', return_value=[date(2026,10,20)])
     @patch('relleno.anpr_schedule.export_and_enqueue', side_effect=ExportError('HikCentral no aceptó el inicio de sesión.'))

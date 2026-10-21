@@ -71,6 +71,45 @@ def visible_text(page, names):
     return page.get_by_text(re.compile('^(?:' + '|'.join(patterns) + ')$')).filter(visible=True)
 
 
+def first_visible(root, selectors):
+    for selector in selectors:
+        matches = root.locator(selector)
+        for index in range(matches.count()):
+            candidate = matches.nth(index)
+            if candidate.is_visible():
+                return candidate
+    return None
+
+
+def login_controls(page, timeout_ms=30000):
+    username_selectors = (
+        '#username',
+        'input[name="username"]',
+        'input[name*="user" i]',
+        'input[autocomplete="username"]',
+        'input[type="text"]',
+        'input:not([type])',
+    )
+    password_selectors = (
+        '#password',
+        'input[name="password"]',
+        'input[name*="pass" i]',
+        'input[autocomplete="current-password"]',
+        'input[type="password"]',
+    )
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        for frame in page.frames:
+            password = first_visible(frame, password_selectors)
+            username = first_visible(frame, username_selectors)
+            if username is not None and password is not None:
+                return frame, username, password
+        page.wait_for_timeout(250)
+    raise ExportError(
+        'HikCentral cargó, pero no mostró su formulario de acceso. Revise que la URL abra el portal web y no OpenAPI.'
+    )
+
+
 def download(config, day, credentials, folder):
     progress = {'message': 'No se pudo iniciar Microsoft Edge para abrir HikCentral.'}
     try:
@@ -98,16 +137,13 @@ def _download(config, day, credentials, folder, progress):
             progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
             page.goto(url + '/', wait_until='domcontentloaded', timeout=60000)
             progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
-            username = page.locator('#username, input[name="username"], input[autocomplete="username"]').filter(visible=True).first
-            password = page.locator('#password, input[name="password"], input[type="password"]').filter(visible=True).first
-            username.wait_for(state='visible')
-            password.wait_for(state='visible')
+            login_frame, username, password = login_controls(page)
             username.fill(credentials['account'])
             password.fill(credentials['secret'])
             progress['message'] = 'No se encontró el botón de inicio de sesión de HikCentral.'
-            login = page.get_by_role(
+            login = login_frame.get_by_role(
                 'button', name=re.compile(r'^(Iniciar sesi[oó]n|Ingresar|Log In|Login|Log in|Sign In)$', re.I)
-            ).or_(page.locator('button[type="submit"]')).filter(visible=True).first
+            ).or_(login_frame.locator('button[type="submit"], input[type="submit"], .login-btn, .login-button')).filter(visible=True).first
             login.click()
             progress['message'] = 'HikCentral no aceptó el inicio de sesión. Revise usuario, contraseña y permisos.'
             try:
