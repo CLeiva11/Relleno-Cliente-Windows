@@ -2,6 +2,7 @@
 from datetime import date, datetime, timedelta
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import time
@@ -130,6 +131,36 @@ def safe_url(value):
         return ''
 
 
+def watch_page(page, progress):
+    """Registra eventos del navegador (sin cuerpos ni credenciales) para el diagnóstico."""
+    events = progress.setdefault('events', [])
+    started = time.monotonic()
+
+    def add(kind, detail=''):
+        # Tras escribir credenciales solo se registra el tipo de evento, nunca su texto.
+        if progress.get('phase') == 'authenticated' and kind.split('.')[0] in ('console', 'pageerror', 'dialog'):
+            detail = ''
+        if len(events) < 200:
+            events.append(f'{time.monotonic() - started:6.1f}s {kind} {str(detail)[:160]}')
+
+    page.on('console', lambda m: m.type in ('error', 'warning') and add('console.' + m.type, m.text))
+    page.on('pageerror', lambda e: add('pageerror', e))
+    page.on('crash', lambda _p: add('crash'))
+    page.on('close', lambda _p: add('close'))
+    page.on('requestfailed', lambda r: add('requestfailed', f'{safe_url(r.url)} {r.failure or ""}'))
+    page.on('response', lambda r: r.status >= 400 and add(f'http{r.status}', safe_url(r.url)))
+    page.on('domcontentloaded', lambda _p: add('domcontentloaded'))
+    page.on('load', lambda _p: add('load'))
+
+    def on_dialog(dialog):
+        add('dialog.' + dialog.type, dialog.message)
+        try:
+            dialog.dismiss()
+        except Exception:
+            pass
+    page.on('dialog', on_dialog)
+
+
 def save_web_diagnostic(progress, error):
     page = progress.get('page')
     if page is None:
@@ -139,8 +170,9 @@ def save_web_diagnostic(progress, error):
     from relleno.portal import CLIENT_VERSION
     report = {
         'client_version': CLIENT_VERSION,
-        'browser_mode': 'edge-offscreen',
+        'browser_mode': 'edge-visible' if os.environ.get('RELLENO_EDGE_VISIBLE') == '1' else 'edge-offscreen',
         'stage': progress.get('message'),
+        'events': list(progress.get('events') or [])[-120:],
         'error_type': type(error).__name__,
         'page_url': safe_url(getattr(page, 'url', '')),
         'title': '',
@@ -196,14 +228,17 @@ def _download(config, day, credentials, folder, progress):
         # Use the Windows-installed Edge; never install a second browser.
         # Edge normal (no headless) con la ventana fuera de pantalla: el login de
         # HikCentral se congela en modo headless, igual que en un PC sin GPU.
+        visible = os.environ.get('RELLENO_EDGE_VISIBLE') == '1'
+        window = ['--window-position=40,40'] if visible else ['--window-position=-32000,-32000']
         with playwright.chromium.launch(channel='msedge', headless=False,
-                                        args=['--window-position=-32000,-32000', '--window-size=1440,1000']) as browser:
+                                        args=[*window, '--window-size=1440,1000']) as browser:
             # The certificate pin was verified by check() immediately before opening Edge.
             context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
                                           viewport={'width':1440, 'height':1000}, accept_downloads=True)
             page = context.new_page()
             progress['page'] = page
+            watch_page(page, progress)
             page.set_default_timeout(15000)
             progress['message'] = 'HikCentral no terminó de cargar su página de inicio.'
             page.goto(url + '/#/', wait_until='domcontentloaded', timeout=60000)
