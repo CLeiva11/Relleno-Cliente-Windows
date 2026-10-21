@@ -108,3 +108,17 @@ class ExportTests(unittest.TestCase):
                 db.execute("INSERT INTO export_jobs(job_key,day,state) VALUES (?,?,'exporting')",(key,'2026-10-20'))
             Scheduler(box)
             self.assertEqual(box.export_jobs()[0]['state'], 'pending')
+
+
+class TypeIntoTests(unittest.TestCase):
+    def test_readonly_field_is_enabled_after_focus_and_filled(self):
+        from unittest.mock import Mock
+        from relleno.hcp_export import type_into
+        field = Mock()
+        field.fill.side_effect = [TimeoutError('readonly'), None]
+        progress = {}
+        type_into(field, 'valor', progress)
+        field.click.assert_called_once()
+        field.evaluate.assert_called_once()
+        self.assertEqual(field.fill.call_count, 2)
+        self.assertNotIn('valor', ' '.join(progress['events']))

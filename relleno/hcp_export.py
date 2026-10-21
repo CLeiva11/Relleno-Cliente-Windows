@@ -137,6 +137,17 @@ def safe_url(value):
         return ''
 
 
+def type_into(field, value, progress):
+    """HikCentral deja sus campos en solo lectura hasta recibir foco (evita autocompletar)."""
+    field.click(timeout=5000)
+    try:
+        field.fill(value, timeout=5000)
+    except Exception:
+        progress.setdefault('events', []).append('login-field readonly; se habilita tras el foco')
+        field.evaluate("e => { e.removeAttribute('readonly'); e.removeAttribute('disabled'); }")
+        field.fill(value, timeout=5000)
+
+
 def edge_visible():
     """Modo visible para diagnóstico: variable de entorno o archivo edge-visible.flag."""
     return os.environ.get('RELLENO_EDGE_VISIBLE') == '1' or (ROOT / 'edge-visible.flag').exists()
@@ -278,8 +289,13 @@ def _download(config, day, credentials, folder, progress):
                 save_web_diagnostic(progress, exc)
                 raise
             progress['phase'] = 'authenticated'
-            username.fill(credentials['account'])
-            password.fill(credentials['secret'])
+            progress['message'] = 'No se pudo escribir en los campos de acceso de HikCentral.'
+            try:
+                type_into(username, credentials['account'], progress)
+                type_into(password, credentials['secret'], progress)
+            except Exception as exc:
+                save_web_diagnostic(progress, exc)
+                raise
             progress['message'] = 'No se encontró el botón de inicio de sesión de HikCentral.'
             login = login_frame.get_by_role(
                 'button', name=re.compile(r'^(Iniciar sesi[oó]n|Ingresar|Log In|Login|Log in|Sign In)$', re.I)
