@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import time
+import traceback
 from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
@@ -83,7 +84,7 @@ def first_visible(root, selectors):
     return None
 
 
-def login_controls(page, timeout_ms=60000):
+def login_controls(page, timeout_ms=60000, events=None):
     username_selectors = (
         '#username',
         'input[name="username"]',
@@ -112,8 +113,10 @@ def login_controls(page, timeout_ms=60000):
             try:
                 password = first_visible(frame, password_selectors)
                 username = first_visible(frame, username_selectors)
-            except Exception:
+            except Exception as exc:
                 # HikCentral replaces frames while its single-page app starts.
+                if events is not None and len(events) < 200:
+                    events.append(f'login-probe {type(exc).__name__}')
                 continue
             if username is not None and password is not None:
                 return frame, username, password
@@ -132,6 +135,11 @@ def safe_url(value):
         return urlunsplit((parsed.scheme, host, parsed.path, '', parsed.fragment.split('?')[0][:80]))
     except (TypeError, ValueError):
         return ''
+
+
+def edge_visible():
+    """Modo visible para diagnóstico: variable de entorno o archivo edge-visible.flag."""
+    return os.environ.get('RELLENO_EDGE_VISIBLE') == '1' or (ROOT / 'edge-visible.flag').exists()
 
 
 def watch_page(page, progress):
@@ -168,13 +176,17 @@ def save_web_diagnostic(progress, error):
     page = progress.get('page')
     if page is None:
         return None
+    if progress.get('diagnostic'):
+        # Ya se guardó con el navegador abierto; no sobrescribir con la página cerrada.
+        return progress['diagnostic']
     folder = ROOT / 'diagnostics'
     folder.mkdir(parents=True, exist_ok=True)
     from relleno.portal import CLIENT_VERSION
     report = {
         'client_version': CLIENT_VERSION,
-        'browser_mode': 'edge-visible' if os.environ.get('RELLENO_EDGE_VISIBLE') == '1' else 'edge-offscreen',
+        'browser_mode': ('edge-visible' if edge_visible() else 'edge-offscreen') + ' sin-webgl',
         'stage': progress.get('message'),
+        'where': [f'{Path(item.filename).name}:{item.name}:{item.lineno}' for item in traceback.extract_tb(error.__traceback__)][-8:],
         'events': list(progress.get('events') or [])[-120:],
         'error_type': type(error).__name__,
         'page_url': safe_url(getattr(page, 'url', '')),
@@ -205,6 +217,7 @@ def save_web_diagnostic(progress, error):
         report['inspection_incomplete'] = True
     target = folder / 'hikcentral-web.json'
     target.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    progress['diagnostic'] = target
     return target
 
 
@@ -231,10 +244,12 @@ def _download(config, day, credentials, folder, progress):
         # Use the Windows-installed Edge; never install a second browser.
         # Edge normal (no headless) con la ventana fuera de pantalla: el login de
         # HikCentral se congela en modo headless, igual que en un PC sin GPU.
-        visible = os.environ.get('RELLENO_EDGE_VISIBLE') == '1'
+        visible = edge_visible()
         window = ['--window-position=40,40'] if visible else ['--window-position=-32000,-32000']
+        # Sin GPU, el fondo 3D del login de HikCentral puede dejar la página sin responder.
         with playwright.chromium.launch(channel='msedge', headless=False,
-                                        args=[*window, '--window-size=1440,1000']) as browser:
+                                        args=[*window, '--window-size=1440,1000',
+                                              '--disable-3d-apis', '--disable-webgl']) as browser:
             # The certificate pin was verified by check() immediately before opening Edge.
             context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
@@ -255,7 +270,7 @@ def _download(config, day, credentials, folder, progress):
             progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
             progress['phase'] = 'login_form'
             try:
-                login_frame, username, password = login_controls(page)
+                login_frame, username, password = login_controls(page, events=progress.setdefault('events', []))
                 page = login_frame.page
                 progress['page'] = page
             except Exception as exc:
