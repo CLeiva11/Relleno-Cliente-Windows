@@ -14,10 +14,10 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
-## Instalador 0.3.0
+## Instalador 0.4.0
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El archivo es `RellenoCliente-Setup-0.3.0.exe`. Incluye exportación ANPR diaria
+El archivo es `RellenoCliente-Setup-0.4.0.exe`. Incluye exportación ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de
 desarrollo después de instalar. Usa Microsoft Edge instalado en Windows.
@@ -32,8 +32,9 @@ archivos del centro piloto. Consulte [INSTALACION.md](INSTALACION.md).
 y el instalador se publica como archivo adjunto de una versión en **Releases**.
 
 La exportación web ANPR y su recepción real en el portal se validaron en el piloto.
-La lectura de Personas también funciona, pero su envío continúa deshabilitado
-porque el portal no devuelve su endpoint.
+La lectura y el envío cámara por cámara de Personas están habilitados. El servicio
+reporta su conexión al portal y acepta órdenes de generación de Personas o ANPR,
+además de conservar la programación ANPR existente.
 
 ## Estado de integración
 

@@ -1,13 +1,14 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.3.0.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.0.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
 2. Ejecute el instalador en Windows x64, con el usuario que operará el cliente.
    No necesita instalar Python. Debe tener Microsoft Edge instalado.
-3. Genere un código nuevo en Comprobaciones del portal para el centro correspondiente.
-   Abra Relleno Cliente, vaya a Inicio y vincule ese equipo una sola vez.
+3. En una actualización, el vínculo existente se conserva. Para una instalación
+   nueva, el vínculo debe ser provisionado por administración; el portal operativo
+   no expone generación de códigos a usuarios.
 4. En HikCentral indique la dirección del servidor, usuario y contraseña con permisos
    para buscar y exportar ANPR. `localhost` se refiere al equipo donde instala el
    cliente; solo sirve si HikCentral está en ese mismo equipo.
@@ -17,6 +18,8 @@
    terminados desde la activación, a partir de la 01:00 en la zona horaria configurada.
    El equipo debe estar encendido y un usuario con sesión iniciada. El cliente
    arranca con Windows y puede seguir trabajando con su ventana cerrada.
+7. Compruebe en Inicio que el portal confirma la señal. Desde Comprobaciones podrá
+   solicitar Personas o ANPR para un día terminado sin afectar la programación.
 
 El instalador es reutilizable; la configuración es propia de cada equipo. No
 copie `config.json`, la cola ni las credenciales del centro piloto a otro centro.

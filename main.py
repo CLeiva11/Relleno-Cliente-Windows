@@ -2,14 +2,14 @@ from relleno.app import main
 
 if __name__ == '__main__':
     import sys
-    if '--anpr-worker' in sys.argv:
+    if '--anpr-worker' in sys.argv or '--agent-worker' in sys.argv:
         from relleno.anpr_worker import run
         run()
-    elif '--resume-anpr' in sys.argv:
+    elif '--resume-anpr' in sys.argv or '--resume-agent' in sys.argv:
         from relleno.storage import load
         from relleno.anpr_worker import autostart, start
         settings = load().get('anpr', {})
-        active = settings.get('watch_enabled') or settings.get('auto_export_enabled')
+        active = bool(load().get('binding'))
         autostart(active)
         if active:
             start()

@@ -1,11 +1,11 @@
-# Entrega 0.3.0
+# Entrega 0.4.0
 
-Ejecute `dist/RellenoCliente-Setup-0.3.0.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.0.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
-En Inicio, vincule mediante código nuevo de Comprobaciones y configure la zona
-horaria. El centro queda fijado por el portal. Si ya está vinculado, se muestra
-directamente el centro y se oculta el formulario.
+En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
+centro queda fijado por el portal. Si ya está vinculado, se muestra directamente
+el centro y se oculta el formulario.
 En Cámaras, importe cuatro columnas (Nombre, Nivel, Grupo, IP), guarde credenciales
 compartidas y pulse Probar todas. Se detectan ID estable, modelo, firmware y región.
 Puede agregar/editar o quitar cámaras; cada una admite credenciales propias.
@@ -76,9 +76,16 @@ Los cambios de interfaz web de HikCentral pueden requerir actualizar el adaptado
 No se generan conteos cero ante un fallo de consulta ni se fabrican Excel a partir
 de JSON. Un fallo de autenticación no provoca intentos indefinidos.
 
-El portal no devolvió `people_count_url`, por lo que Personas sigue deshabilitado
-para envío. El cliente no compara ni corrige bases de datos. Recibir ANPR no
-ejecuta una corrección: se confirma en Comprobaciones.
+El servicio envía un pulso cada minuto y consulta órdenes del portal cada 15
+segundos. Desde Comprobaciones se puede solicitar Personas o ANPR para un día
+terminado; la extracción utiliza los mismos adaptadores, copias locales y colas
+que la ejecución manual y programada. Recibir datos no ejecuta una corrección:
+ésta se confirma por separado en Comprobaciones.
+
+Personas se envía cámara por cámara al endpoint autenticado y conserva Entradas,
+Salidas e intervalos horarios. Actualmente el extractor validado corresponde a
+cámaras de conteo DS-2CD6825; una cámara RF requiere su adaptador validado antes
+de anunciar ese canal como disponible.
 
 La API oficial es una alternativa que requiere AppKey/SecretKey y permisos propios;
 la exportación web validada utiliza el usuario y contraseña ya disponibles.

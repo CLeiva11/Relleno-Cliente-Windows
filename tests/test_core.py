@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from relleno import storage
-from relleno.portal import endpoint, link, BASE
+from relleno.portal import binding_endpoint, endpoint, link, BASE
 
 
 class CoreTests(unittest.TestCase):
@@ -14,6 +14,13 @@ class CoreTests(unittest.TestCase):
         for value in ('http://external.test/x', 'https://external.test/x', '//external.test/x', 'https://u:p@siem.domoticatechnology.cl/x'):
             with self.assertRaises(ValueError):
                 endpoint(BASE, value)
+
+    def test_existing_binding_gets_current_service_endpoints(self):
+        binding = {'agent_id': 'a'}
+        self.assertEqual(
+            binding_endpoint(binding, 'commands_url'),
+            BASE + '/api/comprobaciones/agentes/ordenes/',
+        )
 
     def test_inventory_and_atomic_save(self):
         camera = dict(external_id='test', name='Prueba', ip='camera.invalid', region='r1', direction='bidirectional', source_kind='rf_counter')

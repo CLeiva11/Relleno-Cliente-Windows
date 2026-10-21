@@ -64,19 +64,31 @@ def run():
             watcher = Watcher(box)
             from relleno.anpr_schedule import Scheduler
             scheduler = Scheduler(box)
-            log.info('Monitor ANPR iniciado')
+            log.info('Servicio de Comprobaciones iniciado')
+            last_heartbeat = 0
             while True:
                 config = load()
-                if not (config.get('anpr', {}).get('watch_enabled') or config.get('anpr', {}).get('auto_export_enabled')):
-                    log.info('Monitor ANPR desactivado')
+                if not config.get('binding'):
+                    log.info('Servicio sin vinculación')
                     return
                 try:
                     watcher.scan(config)
                     scheduler.tick(config)
                     box.drain(config)
+                    from relleno.agent import heartbeat, poll_command, execute_command, complete_command
+                    if time.time() - last_heartbeat >= 60:
+                        heartbeat(config)
+                        last_heartbeat = time.time()
+                    command = poll_command(config)
+                    if command:
+                        try:
+                            receipts = execute_command(config, command, box)
+                            complete_command(config, command, 'completed', 'Generación recibida por Comprobaciones', receipts)
+                        except Exception as exc:
+                            complete_command(config, command, 'failed', str(exc)[:500])
                 except Exception:
                     # No exception text, URLs, headers or server bodies enter logs.
-                    log.warning('Revisión ANPR pendiente; consulte la cola en la aplicación')
+                    log.warning('Revisión del servicio pendiente; consulte la aplicación')
                 time.sleep(15)
     except AnprError:
         return  # Another monitor owns the operating system lock.
@@ -88,17 +100,22 @@ def autostart(enabled):
     import winreg
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
         if enabled:
-            winreg.SetValueEx(key, 'RellenoClienteANPR', 0, winreg.REG_SZ, '"' + sys.executable + '" --anpr-worker')
-        else:
+            winreg.SetValueEx(key, 'RellenoClienteServicio', 0, winreg.REG_SZ, '"' + sys.executable + '" --agent-worker')
             try:
                 winreg.DeleteValue(key, 'RellenoClienteANPR')
             except FileNotFoundError:
                 pass
+        else:
+            for name in ('RellenoClienteServicio', 'RellenoClienteANPR'):
+                try:
+                    winreg.DeleteValue(key, name)
+                except FileNotFoundError:
+                    pass
 
 
 def start():
     if getattr(sys, 'frozen', False):
-        command = [sys.executable, '--anpr-worker']
+        command = [sys.executable, '--agent-worker']
     else:
-        command = [sys.executable, str(Path(__file__).resolve().parent.parent / 'main.py'), '--anpr-worker']
+        command = [sys.executable, str(Path(__file__).resolve().parent.parent / 'main.py'), '--agent-worker']
     subprocess.Popen(command, creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True)

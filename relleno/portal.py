@@ -2,6 +2,7 @@ from urllib.parse import urlsplit, urljoin
 import requests
 
 BASE = 'https://siem.domoticatechnology.cl/relleno'
+CLIENT_VERSION = '0.4.0'
 
 
 class PortalError(ValueError):
@@ -47,25 +48,75 @@ def link(code, name):
         raise PortalError('El portal devolvió una vinculación incompleta.')
     # Preserve a successful one-use response securely before further processing.
     from relleno.storage import store_secret
-    store_secret('portal-recovery', {k: data[k] for k in ('agent_id', 'agent_token', 'centre_id', 'centre_name', 'upload_url', 'people_count_url') if k in data})
+    store_secret('portal-recovery', {k: data[k] for k in ('agent_id', 'agent_token', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url') if k in data})
     data['upload_url'] = endpoint(BASE, data['upload_url'])
     if data.get('people_count_url'):
         data['people_count_url'] = endpoint(BASE, data['people_count_url'])
         if data['people_count_url'] == data['upload_url']:
             raise ValueError('El canal Personas no puede usar el destino ANPR.')
+    for key in ('heartbeat_url', 'commands_url', 'command_result_url'):
+        if data.get(key):
+            data[key] = endpoint(BASE, data[key])
     return data
 
 
 def persist_binding(data):
     from relleno.storage import load, save, store_secret
     store_secret('portal/' + str(data['agent_id']), {'token': data['agent_token']})
-    binding = {k: data[k] for k in ('agent_id', 'centre_id', 'centre_name', 'upload_url', 'people_count_url') if k in data}
+    binding = {k: data[k] for k in ('agent_id', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url') if k in data}
     binding['upload_url'] = endpoint(BASE, binding['upload_url'])
     if binding.get('people_count_url'):
         binding['people_count_url'] = endpoint(BASE, binding['people_count_url'])
         if binding['people_count_url'] == binding['upload_url']:
             raise PortalError('El canal Personas no puede usar el destino ANPR.')
+    for key in ('heartbeat_url', 'commands_url', 'command_result_url'):
+        if binding.get(key):
+            binding[key] = endpoint(BASE, binding[key])
     config = load()
     config['binding'] = binding
     save(config)
     return config
+
+
+def binding_endpoint(binding, key):
+    defaults = {
+        'people_count_url': '/api/comprobaciones/agentes/personas/',
+        'heartbeat_url': '/api/comprobaciones/agentes/pulso/',
+        'commands_url': '/api/comprobaciones/agentes/ordenes/',
+        'command_result_url': '/api/comprobaciones/agentes/ordenes/resultado/',
+    }
+    value = binding.get(key) or defaults.get(key)
+    if not value:
+        raise PortalError('La vinculación no incluye el canal solicitado.')
+    return endpoint(BASE, value)
+
+
+def agent_token(binding):
+    from relleno.storage import read_secret
+    secret = read_secret('portal/' + str(binding['agent_id']))
+    if not secret or not secret.get('token'):
+        raise PortalError('No se encontró el token del equipo en Windows.')
+    return secret['token']
+
+
+def agent_post(binding, key, payload):
+    url = binding_endpoint(binding, key)
+    try:
+        response = requests.post(
+            url,
+            headers={'Authorization': 'Bearer ' + agent_token(binding)},
+            json=payload,
+            timeout=(10, 120),
+            allow_redirects=False,
+        )
+    except requests.exceptions.SSLError:
+        raise PortalError('No se pudo verificar el certificado HTTPS del portal.') from None
+    except requests.RequestException:
+        raise PortalError('No se pudo conectar al portal.') from None
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    if not 200 <= response.status_code < 300 or not isinstance(data, dict) or data.get('ok') is not True:
+        raise PortalError(f'El portal rechazó la solicitud (HTTP {response.status_code}).')
+    return data

@@ -113,11 +113,25 @@ class App:
             code.set('')
             def done(data):
                 self.config = persist_binding(data)
+                from relleno.anpr_worker import autostart, start
+                autostart(True)
+                start()
                 self.refresh()
                 messagebox.showinfo('Centro vinculado', 'Listo. El centro quedó fijado y el token se guardó en Windows.')
             self.background('Vinculando con el portal…', lambda: link(value, socket.gethostname()), done)
         ttk.Button(self.link_box, text='Vincular', command=start).pack(anchor='w', pady=8)
-        ttk.Label(frame, text='2. En ANPR, use «Exportar de HikCentral y enviar».\n3. Active la exportación diaria para enviar en segundo plano.', wraplength=950).pack(anchor='w', pady=12)
+        ttk.Label(frame, text='2. Configure cámaras e HikCentral.\n3. El servicio enviará el estado y atenderá la programación y las solicitudes del portal.', wraplength=950).pack(anchor='w', pady=12)
+        self.portal_status = ttk.Label(frame, text='Portal: sin comprobar', wraplength=950)
+        self.portal_status.pack(anchor='w', pady=(0, 8))
+        def test_portal():
+            if not self.config.get('binding'):
+                messagebox.showinfo('Vinculación pendiente', 'Vincule primero este equipo.')
+                return
+            from relleno.agent import heartbeat
+            def done(data):
+                self.portal_status.config(text='Portal: conectado. Última señal confirmada ' + str(data.get('seen_at') or 'ahora'))
+            self.background('Comprobando conexión con el portal…', lambda: heartbeat(load()), done)
+        ttk.Button(frame, text='Comprobar conexión con el portal', command=test_portal).pack(anchor='w', pady=(0, 12))
         advanced = ttk.LabelFrame(frame, text='Preferencias', padding=10)
         advanced.pack(fill='x')
         zone = self.field(advanced, 'Zona horaria', self.config.get('timezone', 'America/Santiago'), choices=('America/Santiago', 'America/Punta_Arenas', 'America/Coyhaique', 'Pacific/Easter'))
@@ -134,7 +148,7 @@ class App:
         self.centre_label.config(text='Centro: ' + binding['centre_name'] if binding else 'Equipo sin vincular')
         if binding:
             self.link_box.pack_forget()
-        channel = 'Personas: destino disponible; envío pendiente de validar contrato.' if binding and binding.get('people_count_url') else 'Personas: envío deshabilitado; el portal no entregó people_count_url. Puede consultar y guardar conteos locales.'
+        channel = 'Servicio automático activo: estado, Personas y ANPR disponibles según la configuración del equipo.' if binding else 'Vincule el equipo para activar el servicio automático.'
         self.channel_label.config(text=channel)
         self.table.delete(*self.table.get_children())
         for i, camera in enumerate(self.config.get('cameras', [])):
@@ -222,11 +236,11 @@ class App:
             first = previous.get('export_since', str((datetime.now(ZoneInfo(self.config['timezone']))-timedelta(days=1)).date()))
             self.config['anpr'] = previous | {'watch_folder': str(target), 'watch_enabled': enabled.get(), 'watch_since_ns': since, 'file_pattern':'*ANPR*', 'auto_export_enabled':daily.get(), 'export_since':first}
             save(self.config)
-            active = enabled.get() or daily.get()
+            active = bool(self.config.get('binding'))
             autostart(active)
             if active:
                 start()
-            self.status_text.set('Envío automático activado' if active else 'Envío automático desactivado')
+            self.status_text.set('Programación guardada; el servicio permanece activo para el portal')
         ttk.Button(automatic, text='Guardar envío automático', command=lambda: self.guarded(persist)).pack(anchor='w', pady=5)
 
     def anpr_result(self, rows):
@@ -390,9 +404,12 @@ class App:
             centre_id = self.config.get('binding', {}).get('centre_id')
             def work():
                 batches, errors = [], []
+                from relleno.people import send_batch
                 for camera in cameras:
                     try:
-                        batches.append(extract_day(camera, value, zone, centre_id))
+                        batch = extract_day(camera, value, zone, centre_id)
+                        send_batch(self.config['binding'], batch)
+                        batches.append(batch)
                     except CameraError as exc:
                         errors.append(camera['name'] + ': ' + str(exc))
                 return batches, errors
@@ -405,9 +422,9 @@ class App:
                 if errors:
                     messagebox.showwarning('Consultas pendientes', '\n'.join(errors))
                 else:
-                    messagebox.showinfo('Consulta guardada', f'{len(batches)} cámaras consultadas. Datos guardados localmente; envío de Personas deshabilitado en esta versión.')
+                    messagebox.showinfo('Personas recibidas', f'{len(batches)} cámaras consultadas y confirmadas por Comprobaciones.')
             self.background('Consultando conteos; se conserva cada cámara por separado…', work, done)
-        ttk.Button(frame, text='Consultar todas las cámaras', command=run).pack(anchor='w')
+        ttk.Button(frame, text='Consultar y enviar todas las cámaras', command=run).pack(anchor='w')
 
     def hikcentral(self, frame):
         from relleno.hikcentral import normalize_url, check

@@ -114,21 +114,16 @@ class Outbox:
 
     @contextmanager
     def sender_lock(self, name='sender.lock'):
-        import msvcrt
+        from relleno.locks import exclusive_byte
         with (self.root / name).open('a+b') as handle:
             if handle.tell() == 0:
                 handle.write(b'0')
                 handle.flush()
-            handle.seek(0)
             try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError:
+                with exclusive_byte(handle):
+                    yield
+            except BlockingIOError:
                 raise AnprError('Otro proceso está enviando ANPR. Espere a que termine.') from None
-            try:
-                yield
-            finally:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
     def drain(self, config=None, session=None):
         config = config or load()

@@ -6,9 +6,9 @@ Construir un cliente Windows instalable que extraiga datos Hikvision y los entre
 al módulo **Comprobaciones** del portal de Relleno. El operador no debe necesitar
 abrir herramientas de desarrollo después de instalarlo.
 
-El equipo se vincula a un centro mediante un código de un solo uso generado en el
-portal. El vínculo fija el centro y entrega un token; el usuario no elige bases de
-datos.
+El vínculo fija el centro y entrega un token; el usuario no elige bases de datos.
+La interfaz operativa no genera códigos nuevos: el alta se provisiona por
+administración y una actualización conserva el vínculo existente.
 
 ## Modelo del portal
 
@@ -57,7 +57,7 @@ Content-Type: application/json
 }
 ```
 
-Respuesta actual relevante:
+Respuesta relevante del alta administrativa:
 
 ```json
 {
@@ -66,7 +66,11 @@ Respuesta actual relevante:
   "agent_token": "...",
   "centre_id": "...",
   "centre_name": "...",
-  "upload_url": "/api/comprobaciones/agentes/anpr/"
+  "upload_url": "/api/comprobaciones/agentes/anpr/",
+  "people_count_url": "/api/comprobaciones/agentes/personas/",
+  "heartbeat_url": "/api/comprobaciones/agentes/pulso/",
+  "commands_url": "/api/comprobaciones/agentes/ordenes/",
+  "command_result_url": "/api/comprobaciones/agentes/ordenes/resultado/"
 }
 ```
 
@@ -101,11 +105,11 @@ En ambos casos se consulta el portal web de la cámara. Primero inspeccionar las
 solicitudes HTTP/API utilizadas por ese portal; usar automatización visual solo si
 no existe una consulta o exportación estable.
 
-El portal debe implementar y devolver `people_count_url` durante la vinculación
-antes de habilitar este envío. Si la URL no viene en la respuesta, registrar el
-canal como deshabilitado. Nunca enviar conteos al endpoint ANPR.
+El portal implementa `people_count_url`. Los vínculos antiguos resuelven el endpoint
+actual en el mismo host aunque no lo conserven en `config.json`. Nunca enviar
+conteos al endpoint ANPR.
 
-Contrato propuesto para `people_count_url`:
+Contrato vigente para `people_count_url`:
 
 ```json
 {
@@ -178,22 +182,18 @@ Personas produce lotes JSON cámara por cámara y Vehículos conserva archivos A
 - Guardar el ID de recepción antes de marcar un lote como entregado.
 - Recuperar la cola después de reinicios sin duplicar recepciones.
 
-## Orden recomendado
+## Servicio y órdenes remotas
 
-1. Crear estructura Python 3.11+ y pruebas.
-2. Implementar vinculación y almacenamiento seguro del token.
-3. Implementar carga manual ANPR y probar contra Comprobaciones.
-4. Implementar `people_count_url` en el portal antes de programar su envío.
-5. Modelar el inventario real de un centro piloto.
-6. Desarrollar un extractor de Personas para un solo modelo de cámara.
-7. Desarrollar extracción ANPR usando, en orden, API oficial, exportación programada
-   o automatización de interfaz.
-8. Agregar cola, reintentos, programación y logs.
-9. Empaquetar con PyInstaller y luego crear un instalador firmado.
+- El trabajador arranca con Windows cuando el equipo está vinculado.
+- Envía pulso cada minuto y consulta órdenes cada 15 segundos.
+- Una orden reutiliza el extractor de Personas o la exportación/cola ANPR existente.
+- La programación ANPR continúa activa de forma independiente.
+- El resultado vuelve al portal con los IDs de recepción; una falla queda visible y
+  puede solicitarse nuevamente sin cambiar de centro.
 
 ## Criterios de aceptación
 
-- Una instalación nueva se vincula usando un código de un solo uso.
+- Una actualización conserva el vínculo y reactiva el servicio en el inicio de Windows.
 - El token y las credenciales nunca quedan en archivos de texto o logs.
 - Cada cámara se identifica de manera estable y conserva su región/dirección.
 - Personas diferencia cero real de dato ausente.

@@ -142,43 +142,37 @@ def extract_day(camera, day, timezone_name, centre_id=None):
     folder.mkdir(parents=True, exist_ok=True)
     lock = folder / 'extract.lock'
     # Windows releases this OS lock automatically after a crash/restart.
-    import msvcrt
+    from relleno.locks import exclusive_byte
     with lock.open('a+b') as handle:
         if handle.tell() == 0:
             handle.write(b'0')
             handle.flush()
-        handle.seek(0)
         try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError:
+            with exclusive_byte(handle):
+                report = folder / 'people.json'
+                if report.exists():
+                    return json.loads(report.read_text(encoding='utf-8'))
+                root = ET.Element('CountingStatisticsDescription')
+                ET.SubElement(root, 'statisticType').text = 'all'
+                ET.SubElement(root, 'reportType').text = 'daily'
+                span = ET.SubElement(ET.SubElement(root, 'timeSpanList'), 'timeSpan')
+                ET.SubElement(span, 'startTime').text = day.isoformat() + 'T00:00:00'
+                ET.SubElement(span, 'endTime').text = day.isoformat() + 'T23:59:59'
+                ET.SubElement(root, 'child').text = 'false'
+                ET.SubElement(root, 'regionID').text = region
+                raw = request(camera, '/ISAPI/System/Video/inputs/channels/1/counting/search', ET.tostring(root, encoding='utf-8'))
+                (folder / ('source-' + uuid.uuid4().hex + '.xml')).write_bytes(raw)
+                intervals = parse_counts(raw, day, zone)
+                data = dict(schema_version=1, data_type='personas', source_kind=camera['source_kind'],
+                            batch_id=batch_id, timezone=timezone_name,
+                            camera={k: camera[k] for k in ('external_id', 'name', 'ip', 'region', 'direction')},
+                            intervals=intervals)
+                temporary = folder / 'people.tmp'
+                temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+                temporary.replace(report)
+                return data
+        except BlockingIOError:
             raise CameraError('Esta ventana ya se está consultando.') from None
-        try:
-            report = folder / 'people.json'
-            if report.exists():
-                return json.loads(report.read_text(encoding='utf-8'))
-            root = ET.Element('CountingStatisticsDescription')
-            ET.SubElement(root, 'statisticType').text = 'all'
-            ET.SubElement(root, 'reportType').text = 'daily'
-            span = ET.SubElement(ET.SubElement(root, 'timeSpanList'), 'timeSpan')
-            ET.SubElement(span, 'startTime').text = day.isoformat() + 'T00:00:00'
-            ET.SubElement(span, 'endTime').text = day.isoformat() + 'T23:59:59'
-            ET.SubElement(root, 'child').text = 'false'
-            ET.SubElement(root, 'regionID').text = region
-            raw = request(camera, '/ISAPI/System/Video/inputs/channels/1/counting/search', ET.tostring(root, encoding='utf-8'))
-            (folder / ('source-' + uuid.uuid4().hex + '.xml')).write_bytes(raw)
-            intervals = parse_counts(raw, day, zone)
-            data = dict(schema_version=1, data_type='personas', source_kind=camera['source_kind'],
-                        batch_id=batch_id, timezone=timezone_name,
-                        camera={k: camera[k] for k in ('external_id', 'name', 'ip', 'region', 'direction')},
-                        intervals=intervals)
-            # No portal destination is used here; keep source and batch locally.
-            temporary = folder / 'people.tmp'
-            temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-            temporary.replace(report)
-            return data
-        finally:
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 def parse_inventory(text):
