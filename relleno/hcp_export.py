@@ -101,8 +101,12 @@ def login_controls(page, timeout_ms=30000):
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
         for frame in page.frames:
-            password = first_visible(frame, password_selectors)
-            username = first_visible(frame, username_selectors)
+            try:
+                password = first_visible(frame, password_selectors)
+                username = first_visible(frame, username_selectors)
+            except Exception:
+                # HikCentral replaces frames while its single-page app starts.
+                continue
             if username is not None and password is not None:
                 return frame, username, password
         page.wait_for_timeout(250)
@@ -135,6 +139,11 @@ def save_web_diagnostic(progress, error):
         'title': '',
         'frames': [],
     }
+    if progress.get('phase') == 'login_form':
+        try:
+            page.screenshot(path=str(folder / 'hikcentral-login.png'), full_page=True, timeout=5000)
+        except Exception:
+            report['screenshot_incomplete'] = True
     try:
         report['title'] = page.title()
         for frame in page.frames:
@@ -150,8 +159,6 @@ def save_web_diagnostic(progress, error):
                     'visible': item.is_visible(),
                 })
             report['frames'].append({'url': safe_url(frame.url), 'inputs': fields})
-        if progress.get('phase') == 'login_form':
-            page.screenshot(path=str(folder / 'hikcentral-login.png'), full_page=True)
     except Exception:
         report['inspection_incomplete'] = True
     target = folder / 'hikcentral-web.json'
@@ -192,7 +199,12 @@ def _download(config, day, credentials, folder, progress):
             page.goto(url + '/', wait_until='domcontentloaded', timeout=60000)
             progress['message'] = 'No se encontraron los campos de usuario y contraseña de HikCentral.'
             progress['phase'] = 'login_form'
-            login_frame, username, password = login_controls(page)
+            try:
+                login_frame, username, password = login_controls(page)
+            except Exception as exc:
+                # Capture while the browser context is still open.
+                save_web_diagnostic(progress, exc)
+                raise
             progress['phase'] = 'authenticated'
             username.fill(credentials['account'])
             password.fill(credentials['secret'])
