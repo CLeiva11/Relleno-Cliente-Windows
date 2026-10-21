@@ -125,7 +125,7 @@ def safe_url(value):
         host = parsed.hostname or ''
         if parsed.port:
             host += f':{parsed.port}'
-        return urlunsplit((parsed.scheme, host, parsed.path, '', ''))
+        return urlunsplit((parsed.scheme, host, parsed.path, '', parsed.fragment.split('?')[0][:80]))
     except (TypeError, ValueError):
         return ''
 
@@ -136,14 +136,17 @@ def save_web_diagnostic(progress, error):
         return None
     folder = ROOT / 'diagnostics'
     folder.mkdir(parents=True, exist_ok=True)
+    from relleno.portal import CLIENT_VERSION
     report = {
+        'client_version': CLIENT_VERSION,
+        'browser_mode': 'edge-offscreen',
         'stage': progress.get('message'),
         'error_type': type(error).__name__,
         'page_url': safe_url(getattr(page, 'url', '')),
         'title': '',
         'frames': [],
     }
-    if progress.get('phase') == 'login_form':
+    if True:  # Captura en cualquier etapa: muestra qué veía Edge al fallar.
         try:
             page.screenshot(path=str(folder / 'hikcentral-login.png'), full_page=True, timeout=5000)
         except Exception:
@@ -191,10 +194,10 @@ def _download(config, day, credentials, folder, progress):
     url = normalize_url(settings['url'])
     with sync_playwright() as playwright:
         # Use the Windows-installed Edge; never install a second browser.
-        # Sin GPU, el fondo 3D (WebGL) del login de HikCentral bloquea la página en
-        # Edge en segundo plano. Se deshabilita 3D para que use su fondo estático.
-        with playwright.chromium.launch(channel='msedge', headless=True,
-                                        args=['--disable-3d-apis', '--disable-webgl', '--disable-gpu']) as browser:
+        # Edge normal (no headless) con la ventana fuera de pantalla: el login de
+        # HikCentral se congela en modo headless, igual que en un PC sin GPU.
+        with playwright.chromium.launch(channel='msedge', headless=False,
+                                        args=['--window-position=-32000,-32000', '--window-size=1440,1000']) as browser:
             # The certificate pin was verified by check() immediately before opening Edge.
             context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
