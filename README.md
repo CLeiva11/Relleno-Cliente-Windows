@@ -14,10 +14,10 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
-## Instalador 0.4.0
+## Instalador 0.4.2
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El archivo es `RellenoCliente-Setup-0.4.0.exe`. Incluye exportación ANPR diaria
+El archivo es `RellenoCliente-Setup-0.4.2.exe`. Incluye exportación ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de
 desarrollo después de instalar. Usa Microsoft Edge instalado en Windows.
@@ -32,15 +32,17 @@ archivos del centro piloto. Consulte [INSTALACION.md](INSTALACION.md).
 y el instalador se publica como archivo adjunto de una versión en **Releases**.
 
 La exportación web ANPR y su recepción real en el portal se validaron en el piloto.
-La lectura y el envío cámara por cámara de Personas están habilitados. El servicio
+La lectura y el envío cámara por cámara de Personas están habilitados para equipos
+que expongan el contrato ISAPI validado, incluidos DS-2CD6825G0/C-IVS e
+iDS-2CD7146G0-IZS. El servicio
 reporta su conexión al portal y acepta órdenes de generación de Personas o ANPR,
-además de conservar la programación ANPR existente.
+además de conservar la programación ANPR existente y permitir programar Personas.
 
 ## Estado de integración
 
 - El portal ya permite vincular un equipo mediante código de un solo uso.
 - El endpoint autenticado para archivos ANPR ya está definido.
-- El endpoint para conteos de Personas debe habilitarse en el portal y devolverse
-  durante la vinculación.
+- El endpoint para conteos de Personas está habilitado y se devuelve durante la
+  vinculación junto con los endpoints de pulso y órdenes remotas.
 - ANPR usa la exportación Excel nativa del portal web de HikCentral con las
   credenciales locales guardadas; no necesita AppKey para este método.

@@ -2,7 +2,7 @@ from urllib.parse import urlsplit, urljoin
 import requests
 
 BASE = 'https://siem.domoticatechnology.cl/relleno'
-CLIENT_VERSION = '0.4.1'
+CLIENT_VERSION = '0.4.2'
 
 
 class PortalError(ValueError):
@@ -118,5 +118,8 @@ def agent_post(binding, key, payload):
     except ValueError:
         data = None
     if not 200 <= response.status_code < 300 or not isinstance(data, dict) or data.get('ok') is not True:
-        raise PortalError(f'El portal rechazó la solicitud (HTTP {response.status_code}).')
+        detail = data.get('error') if isinstance(data, dict) else None
+        detail = ' '.join(str(detail or '').split())[:300]
+        suffix = ': ' + detail if detail else '.'
+        raise PortalError(f'El portal rechazó la solicitud (HTTP {response.status_code}){suffix}')
     return data

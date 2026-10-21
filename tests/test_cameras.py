@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
-from relleno.cameras import parse_counts, parse_inventory, CameraError, host_url
+from relleno.cameras import parse_counts, parse_inventory, supported_counting_model, CameraError, host_url
 
 
 def report(entries='0', exits='3', count='1', start='2026-10-19T00:00:00', end='2026-10-19T00:59:59'):
@@ -12,6 +12,10 @@ def report(entries='0', exits='3', count='1', start='2026-10-19T00:00:00', end='
 
 
 class CameraTests(unittest.TestCase):
+    def test_supported_counting_models_are_case_insensitive(self):
+        self.assertTrue(supported_counting_model('DS-2CD6825G0/C-IVS'))
+        self.assertTrue(supported_counting_model('iDS-2CD7146G0-IZS'))
+        self.assertFalse(supported_counting_model('DS-2CD7A46G0/P-IZHSY'))
     def test_zero_and_inclusive_end(self):
         row = parse_counts(report(), date(2026, 10, 19), ZoneInfo('America/Santiago'))[0]
         self.assertEqual(row['entries'], 0)
@@ -85,6 +89,14 @@ class ProbeCapabilityTests(unittest.TestCase):
         self.assertEqual(cam['source_kind'], 'people_counter')
         self.assertEqual(cam['region_id'], '1')
         self.assertTrue(cam['counting_enabled'])
+
+    def test_deepinview_global_rule_defaults_to_region_one(self):
+        device = b'<DeviceInfo><serialNumber>SN2</serialNumber><model>iDS-2CD7146G0-IZS</model></DeviceInfo>'
+        counting = b'<Counting><enabled>true</enabled></Counting>'
+        cam = self.probe({'/ISAPI/System/deviceInfo': device,
+                          '/ISAPI/System/Video/inputs/channels/1/counting': counting})
+        self.assertEqual(cam['region_id'], '1')
+        self.assertTrue(cam['counting_model_supported'])
 
     def test_camera_without_counting_is_not_people_counter(self):
         from relleno.cameras import CameraError

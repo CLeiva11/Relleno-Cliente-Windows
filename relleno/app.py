@@ -389,6 +389,16 @@ class App:
             return results
         def done(results):
             self.config['cameras'] = results
+            people = self.config.setdefault('people', {})
+            if 'auto_export_enabled' not in people and any(
+                camera.get('counting_enabled') and camera.get('source_kind') == 'people_counter'
+                for camera in results
+            ):
+                yesterday = (
+                    datetime.now(ZoneInfo(self.config.get('timezone', 'America/Santiago')))
+                    - timedelta(days=1)
+                ).date()
+                people.update(auto_export_enabled=True, export_since=str(yesterday))
             save(self.config)
             self.refresh()
         self.background('Probando cámaras e identificando modelo y región…', work, done)
@@ -435,6 +445,35 @@ class App:
                     messagebox.showinfo('Personas recibidas', f'{len(batches)} cámaras consultadas y confirmadas por Comprobaciones.')
             self.background('Consultando conteos; se conserva cada cámara por separado…', work, done)
         ttk.Button(frame, text='Consultar y enviar todas las cámaras', command=run).pack(anchor='w')
+        automatic = ttk.LabelFrame(frame, text='Extracción automática de Personas', padding=10)
+        automatic.pack(fill='x', pady=10)
+        people_settings = self.config.get('people', {})
+        daily = tk.BooleanVar(value=people_settings.get('auto_export_enabled', False))
+        ttk.Checkbutton(
+            automatic,
+            text='Consultar y enviar cada día terminado (a partir de la 01:00)',
+            variable=daily,
+        ).pack(anchor='w', pady=3)
+        def persist_people_schedule():
+            if daily.get() and not self.config.get('binding'):
+                raise ValueError('Vincule el equipo antes de activar la extracción automática.')
+            previous = self.config.get('people', {})
+            first = previous.get('export_since', str(yesterday))
+            self.config['people'] = previous | {
+                'auto_export_enabled': daily.get(),
+                'export_since': first,
+            }
+            save(self.config)
+            from relleno.anpr_worker import autostart, start
+            autostart(bool(self.config.get('binding')))
+            if self.config.get('binding'):
+                start()
+            self.status_text.set('Programación de Personas guardada')
+        ttk.Button(
+            automatic,
+            text='Guardar programación de Personas',
+            command=lambda: self.guarded(persist_people_schedule),
+        ).pack(anchor='w', pady=5)
 
     def hikcentral(self, frame):
         from relleno.hikcentral import normalize_url, check

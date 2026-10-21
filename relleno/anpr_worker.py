@@ -64,6 +64,8 @@ def run():
             watcher = Watcher(box)
             from relleno.anpr_schedule import Scheduler
             scheduler = Scheduler(box)
+            from relleno.people_schedule import PeopleScheduler
+            people_scheduler = PeopleScheduler(box)
             log.info('Servicio de Comprobaciones iniciado')
             last_heartbeat = 0
             while True:
@@ -74,6 +76,7 @@ def run():
                 try:
                     watcher.scan(config)
                     scheduler.tick(config)
+                    people_scheduler.tick(config)
                     box.drain(config)
                     from relleno.agent import heartbeat, poll_command, execute_command, complete_command
                     if time.time() - last_heartbeat >= 60:

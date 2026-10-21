@@ -72,6 +72,11 @@ def counting_path(channel, suffix=''):
     return f'/ISAPI/System/Video/inputs/channels/{channel}/counting{suffix}'
 
 
+def supported_counting_model(model):
+    normalized = str(model or '').strip().upper()
+    return normalized.startswith(('DS-2CD6825G0', 'IDS-2CD7146G0'))
+
+
 def video_channels(camera):
     """Canales de video del equipo (cámara multilente o NVR); 1 si no los informa."""
     try:
@@ -120,15 +125,17 @@ def probe(camera):
             settings, channel = tree_counting, candidate
             break
     if settings is not None:
-        regions = settings.findall('./CountingRegionList/CountingRegion')
-        if len(regions) != 1:
+        regions = settings.findall('.//CountingRegion')
+        if len(regions) > 1:
             raise CameraError('Este extractor requiere una única región; no se acumularon regiones.')
-        region = regions[0].findtext('id')
+        # DeepinView can expose one global counting rule without CountingRegionList.
+        region = regions[0].findtext('id') if regions else '1'
         if not region or not region.isdigit():
             raise CameraError('La cámara no entregó una región válida.')
         updated.update(source_kind='people_counter', direction='bidirectional', region='r'+region,
                        region_id=region, query_method='ISAPI counting/search · HTTP Digest',
-                       counting_enabled=settings.findtext('enabled') == 'true', channel_id=channel)
+                       counting_enabled=str(settings.findtext('enabled') or '').lower() == 'true',
+                       counting_model_supported=supported_counting_model(model), channel_id=channel)
     else:
         updated.update(source_kind='', counting_enabled=False)
     creds = read_secret('camera/' + camera['external_id']) or read_secret('camera-default')

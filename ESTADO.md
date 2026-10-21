@@ -1,6 +1,6 @@
-# Entrega 0.4.0
+# Entrega 0.4.2
 
-Ejecute `dist/RellenoCliente-Setup-0.4.0.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.2.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
@@ -83,9 +83,10 @@ que la ejecución manual y programada. Recibir datos no ejecuta una corrección:
 ésta se confirma por separado en Comprobaciones.
 
 Personas se envía cámara por cámara al endpoint autenticado y conserva Entradas,
-Salidas e intervalos horarios. Actualmente el extractor validado corresponde a
-cámaras de conteo DS-2CD6825; una cámara RF requiere su adaptador validado antes
-de anunciar ese canal como disponible.
+Salidas e intervalos horarios. La detección se hace por capacidad ISAPI y contempla
+DS-2CD6825G0/C-IVS e iDS-2CD7146G0-IZS, incluso cuando el segundo expone una regla
+global sin `CountingRegionList`. La programación diaria se ejecuta desde la 01:00,
+conserva pendientes tras reinicios y no transforma fallos en conteos cero.
 
 La API oficial es una alternativa que requiere AppKey/SecretKey y permisos propios;
 la exportación web validada utiliza el usuario y contraseña ya disponibles.

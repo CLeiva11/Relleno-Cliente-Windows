@@ -38,6 +38,10 @@ class Outbox:
                 job_key TEXT PRIMARY KEY, day TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
                 attempts INTEGER NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0,
                 message TEXT NOT NULL DEFAULT '')''')
+            db.execute('''CREATE TABLE IF NOT EXISTS people_jobs (
+                job_key TEXT PRIMARY KEY, day TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0,
+                message TEXT NOT NULL DEFAULT '')''')
 
     @contextmanager
     def connect(self):
@@ -102,6 +106,10 @@ class Outbox:
     def export_jobs(self):
         with self.connect() as db:
             return [dict(row) for row in db.execute('SELECT * FROM export_jobs ORDER BY day DESC')]
+
+    def people_jobs(self):
+        with self.connect() as db:
+            return [dict(row) for row in db.execute('SELECT * FROM people_jobs ORDER BY day DESC')]
 
     def update(self, batch_id, state, message, **values):
         allowed = {'receipt_id', 'next_attempt'}
