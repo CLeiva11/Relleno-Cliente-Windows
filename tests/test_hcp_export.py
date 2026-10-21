@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from relleno.anpr import Outbox
-from relleno.hcp_export import export_day, pending_days, ExportError
+from relleno.hcp_export import download, export_day, pending_days, ExportError
 from relleno.anpr_schedule import Scheduler
 
 
@@ -41,6 +41,12 @@ class ExportTests(unittest.TestCase):
         # UTC 03:30 is 00:30 in Santiago on this date.
         self.assertEqual(pending_days(config, datetime(2026,10,21,3,30,tzinfo=timezone.utc)), [])
         self.assertEqual(pending_days(config, datetime(2026,10,22,5,tzinfo=timezone.utc)), [date(2026,10,20),date(2026,10,21)])
+
+    @patch('relleno.hcp_export._download', side_effect=RuntimeError('secret browser output'))
+    def test_browser_errors_are_replaced_with_safe_stage(self, implementation):
+        with self.assertRaisesRegex(ExportError, 'iniciar Microsoft Edge') as failure:
+            download(self.config(), date(2026, 10, 20), {'account':'user','secret':'private'}, Path('.'))
+        self.assertNotIn('secret browser output', str(failure.exception))
 
     @patch('relleno.anpr_schedule.pending_days', return_value=[date(2026,10,20)])
     @patch('relleno.anpr_schedule.export_and_enqueue', side_effect=ExportError('HikCentral no aceptó el inicio de sesión.'))
