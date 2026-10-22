@@ -6,6 +6,7 @@ import json
 import re
 import uuid
 import xml.etree.ElementTree as ET
+from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 import requests
@@ -51,6 +52,29 @@ def request(camera, path, body=None):
         raise CameraError('No se pudo conectar con la cámara.') from None
     if response.status_code == 401:
         raise CameraError('La cámara rechazó el usuario o la contraseña. No se reintentó.')
+    if response.status_code in {301, 302, 303, 307, 308}:
+        location = str(response.headers.get('Location') or '').strip()
+        if not location:
+            raise CameraError(f'La cámara respondió HTTP {response.status_code} sin indicar destino.')
+        source = urlsplit(response.url)
+        target = urlsplit(urljoin(response.url, location))
+        if target.hostname != source.hostname:
+            raise CameraError(
+                f'La cámara respondió HTTP {response.status_code} hacia otro servidor; no se reenviaron credenciales.'
+            )
+        if source.scheme == 'http' and target.scheme == 'https':
+            raise CameraError(
+                f'La cámara respondió HTTP {response.status_code} porque exige HTTPS. '
+                'Revise HTTPS/certificado en la cámara antes de consultar ISAPI.'
+            )
+        if not target.path.startswith('/ISAPI/'):
+            raise CameraError(
+                f'La cámara respondió HTTP {response.status_code} y redirigió ISAPI al login web. '
+                'Revise que ISAPI y autenticación HTTP Digest estén habilitados.'
+            )
+        raise CameraError(
+            f'La cámara respondió HTTP {response.status_code} hacia otra ruta ISAPI ({target.path}).'
+        )
     if response.status_code != 200:
         raise CameraError(f'La cámara respondió HTTP {response.status_code}.')
     return response.content

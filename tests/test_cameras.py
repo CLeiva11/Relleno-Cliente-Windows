@@ -2,9 +2,9 @@ from datetime import date
 import unittest
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
-from relleno.cameras import parse_counts, parse_inventory, supported_counting_model, CameraError, host_url
+from relleno.cameras import parse_counts, parse_inventory, request, supported_counting_model, CameraError, host_url
 
 
 def report(entries='0', exits='3', count='1', start='2026-10-19T00:00:00', end='2026-10-19T00:59:59'):
@@ -49,6 +49,31 @@ class CameraTests(unittest.TestCase):
     def test_camera_address_cannot_contain_credentials(self):
         with self.assertRaises(CameraError):
             host_url('user:secret@camera.invalid')
+
+    @patch('relleno.cameras.read_secret', return_value={'username': 'user', 'password': 'secret'})
+    @patch('relleno.cameras.requests.request')
+    def test_redirect_to_web_login_has_actionable_error(self, send, secret):
+        send.return_value = Mock(
+            status_code=302,
+            headers={'Location': '/doc/page/login.asp'},
+            url='http://192.168.1.20/ISAPI/System/deviceInfo',
+        )
+        camera = {'external_id': '20', 'ip': '192.168.1.20'}
+        with self.assertRaisesRegex(CameraError, 'login web.*Digest'):
+            request(camera, '/ISAPI/System/deviceInfo')
+
+    @patch('relleno.cameras.read_secret', return_value={'username': 'user', 'password': 'secret'})
+    @patch('relleno.cameras.requests.request')
+    def test_https_redirect_does_not_resend_credentials(self, send, secret):
+        send.return_value = Mock(
+            status_code=302,
+            headers={'Location': 'https://192.168.1.20/ISAPI/System/deviceInfo'},
+            url='http://192.168.1.20/ISAPI/System/deviceInfo',
+        )
+        camera = {'external_id': '20', 'ip': '192.168.1.20'}
+        with self.assertRaisesRegex(CameraError, 'exige HTTPS'):
+            request(camera, '/ISAPI/System/deviceInfo')
+        self.assertEqual(send.call_count, 1)
 
     @patch('relleno.cameras.request')
     def test_source_is_kept_and_same_window_is_not_extracted_twice(self, request):
