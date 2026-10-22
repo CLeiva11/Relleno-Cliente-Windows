@@ -1,4 +1,4 @@
-# Entrega 0.4.19
+# Entrega 0.4.20
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
@@ -7,7 +7,7 @@ crear conteos en cero ni exportar otro intervalo.
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.19.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.20.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El

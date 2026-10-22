@@ -172,6 +172,22 @@ def tree_root_checked(row):
     }"""))
 
 
+def dismiss_hikcentral_overlays(page):
+    """Best-effort dismissal of first-use notices that can cover ANPR controls."""
+    labels = (
+        r'^(Ignorar|Ignore)$',
+        r'^(No vuelva a mostrar|No mostrar de nuevo|Don.t show again)$',
+        r'^(OK|Aceptar|Got it)$',
+    )
+    for label in labels:
+        candidates = page.get_by_text(re.compile(label, re.I)).filter(visible=True)
+        for index in range(min(candidates.count(), 3)):
+            try:
+                candidates.nth(index).click(timeout=2000, force=True)
+            except Exception:
+                pass
+
+
 def type_into(field, value, progress):
     """HikCentral deja sus campos en solo lectura hasta recibir foco (evita autocompletar)."""
     field.click(timeout=5000)
@@ -369,14 +385,13 @@ def _download(config, day, credentials, folder, progress):
                 progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
                 root = ui_text(page, 'root').first
                 root.wait_for(timeout=30000)
-                # A first-use tooltip can cover the source selection.
-                tooltip = page.get_by_role('button', name='OK', exact=True).filter(visible=True)
-                if tooltip.count():
-                    tooltip.first.click()
+                dismiss_hikcentral_overlays(page)
                 # Fila de la raíz: el ancestro más cercano que contiene su casilla (árbol zTree o el de la versión nueva).
                 row = root.locator("xpath=ancestor::*[.//*[@treenode_check or @type='checkbox' or contains(@class,'checkbox')]][1]")
                 if not tree_root_checked(row):
-                    row.locator("[treenode_check], [class*=checkbox], input[type=checkbox]").first.click()
+                    row.locator("[treenode_check], [class*=checkbox], input[type=checkbox]").first.click(
+                        timeout=5000, force=True
+                    )
                 if not tree_root_checked(row):
                     raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
                 progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'

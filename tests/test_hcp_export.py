@@ -6,7 +6,8 @@ from unittest.mock import Mock, patch
 
 from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
-                                ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError)
+                                ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
+                                dismiss_hikcentral_overlays)
 from relleno.anpr_schedule import Scheduler
 
 
@@ -117,6 +118,18 @@ class ExportTests(unittest.TestCase):
 
 
 class TypeIntoTests(unittest.TestCase):
+    def test_first_use_overlays_never_block_export(self):
+        page = Mock()
+        candidates = Mock()
+        page.get_by_text.return_value.filter.return_value = candidates
+        candidates.count.return_value = 1
+        candidates.nth.return_value.click.side_effect = TimeoutError('covered')
+
+        dismiss_hikcentral_overlays(page)
+
+        self.assertEqual(page.get_by_text.call_count, 3)
+        self.assertEqual(candidates.nth.return_value.click.call_count, 3)
+
     def test_readonly_field_is_enabled_after_focus_and_filled(self):
         from unittest.mock import Mock
         from relleno.hcp_export import type_into
