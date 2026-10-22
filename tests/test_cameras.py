@@ -4,7 +4,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
-from relleno.cameras import is_local_camera_host, parse_counts, parse_inventory, request, supported_counting_model, CameraError, host_url
+from relleno.cameras import (is_local_camera_host, parse_counts, parse_inventory, request,
+                             supported_counting_model, counting_query_profile, query_variants,
+                             CameraError, host_url)
 
 
 def report(entries='0', exits='3', count='1', start='2026-10-19T00:00:00', end='2026-10-19T00:59:59'):
@@ -31,6 +33,19 @@ class CameraTests(unittest.TestCase):
         raw = b'<CountingStatisticsResult><responseStatus>false</responseStatus><statusString>Invalid XML Content</statusString></CountingStatisticsResult>'
         with self.assertRaisesRegex(CameraError, 'Invalid XML Content'):
             parse_counts(raw, date(2026, 10, 19), ZoneInfo('America/Santiago'))
+
+    def test_legacy_count_aliases_and_missing_optional_status_are_supported(self):
+        raw = report(entries='7', exits='9').replace(b'<responseStatus>true</responseStatus>', b'')
+        raw = raw.replace(b'enterCount', b'enterNum').replace(b'exitCount', b'exitNum')
+        row = parse_counts(raw, date(2026, 10, 19), ZoneInfo('America/Santiago'))[0]
+        self.assertEqual((row['entries'], row['exits']), (7, 9))
+
+    def test_capabilities_prioritize_legacy_region_body(self):
+        profile = counting_query_profile(
+            b'<CountingCap><regionID opt="1,2"/><reportType opt="daily"/></CountingCap>'
+        )
+        self.assertEqual(query_variants({'counting_query_profile': profile}, '1')[0],
+                         ('regionID', '1', False))
 
     def test_wrong_day_and_ambiguous_dst_are_rejected(self):
         with self.assertRaises(CameraError):
@@ -135,6 +150,18 @@ class CameraTests(unittest.TestCase):
         self.assertIn(b'<MinTimeInterval>hour</MinTimeInterval>', first_body)
         self.assertNotIn(b'<regionsID>', second_body)
         self.assertNotIn(b'<child>', first_body)
+
+    @patch('relleno.cameras.request')
+    def test_unsupported_xml_http_error_uses_next_safe_variant(self, request):
+        from relleno.cameras import extract_day
+        request.side_effect = [CameraError('La cámara respondió HTTP 415.'), report()]
+        cam = dict(external_id='http-fallback', model='DS-2CD6825', source_kind='people_counter',
+                   counting_enabled=True, region_id='1', channel_id='1', name='Prueba',
+                   ip='camera.invalid', direction='bidirectional')
+        with tempfile.TemporaryDirectory() as folder, patch('relleno.cameras.ROOT', Path(folder)):
+            result = extract_day(cam, '2026-10-19', 'America/Santiago', 'test-centre')
+        self.assertEqual(result['intervals'][0]['exits'], 3)
+        self.assertEqual(request.call_count, 2)
 
 
 class ProbeCapabilityTests(unittest.TestCase):

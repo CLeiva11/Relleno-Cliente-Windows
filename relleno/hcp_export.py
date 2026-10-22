@@ -19,6 +19,25 @@ class ExportError(ValueError):
     pass
 
 
+# HikCentral changes labels and request routes between releases while keeping
+# the same workflow. Unknown layouts stop with diagnostics instead of exporting
+# a different view or date range.
+HIKCENTRAL_UI = {
+    'module': ('ANPR', 'Vehicle', 'Vehículos', 'Vehicles'),
+    'search_view': ('Búsqueda de paso de vehículos', 'Búsqueda de vehículos',
+                    'Vehicle Passing Search', 'Vehicle Search'),
+    'root': ('HikCentral Professional', 'Todos los recursos', 'All Resources', 'All Cameras'),
+    'time': ('Tiempo', 'Hora', 'Time'),
+    'custom': ('Personalizado', 'Personalizada', 'Custom', 'Customize'),
+    'export': ('Exportar', 'Export'),
+    'file_format': ('Formato de archivo', 'File Format', 'Export Format'),
+}
+ANPR_COUNT_RESPONSE = re.compile(
+    r'VehicleLogsCount|vehicle[^/?]*(?:count|total)|passing[^/?]*(?:count|total)|anpr[^/?]*(?:count|total)',
+    re.I,
+)
+
+
 def export_key(config, day):
     return hashlib.sha256(json.dumps([str(config['binding']['centre_id']), config['hikcentral']['url'], day.isoformat()], separators=(',', ':')).encode()).hexdigest()[:16]
 
@@ -72,6 +91,10 @@ def export_day(config, day):
 def visible_text(page, names):
     patterns = [r'[\s\xa0]+'.join(re.escape(word) for word in name.split()) for name in names]
     return page.get_by_text(re.compile('^(?:' + '|'.join(patterns) + ')$')).filter(visible=True)
+
+
+def ui_text(page, key):
+    return visible_text(page, HIKCENTRAL_UI[key])
 
 
 def first_visible(root, selectors):
@@ -334,16 +357,16 @@ def _download(config, day, credentials, folder, progress):
                 except Exception:
                     raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
                 progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
-                visible_text(page, ['ANPR']).first.click()
+                ui_text(page, 'module').first.click()
                 # En versiones nuevas el módulo abre un menú lateral; se entra a la búsqueda de pasos.
-                search_menu = visible_text(page, ['Búsqueda de paso de vehículos', 'Vehicle Passing Search'])
+                search_menu = ui_text(page, 'search_view')
                 try:
                     search_menu.first.wait_for(timeout=10000)
                     search_menu.first.click()
                 except Exception:
                     pass  # Versión del piloto: ANPR abre directamente la búsqueda.
                 progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
-                root = visible_text(page, ['HikCentral Professional']).first
+                root = ui_text(page, 'root').first
                 root.wait_for(timeout=30000)
                 # A first-use tooltip can cover the source selection.
                 tooltip = page.get_by_role('button', name='OK', exact=True).filter(visible=True)
@@ -361,8 +384,8 @@ def _download(config, day, credentials, folder, progress):
                     placeholder.first.click()
                 else:
                     # Versión nueva: el selector muestra "Hoy"; es el primer campo bajo "Tiempo".
-                    page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.locator('xpath=following::input[1]').click()
-                visible_text(page, ['Personalizado', 'Custom']).first.click()
+                    ui_text(page, 'time').first.locator('xpath=following::input[1]').click()
+                ui_text(page, 'custom').first.click()
                 range_inputs = page.locator('input.el-range-input').filter(visible=True)
                 if range_inputs.count() != 2:
                     raise ExportError('La interfaz de fechas de HikCentral cambió. No se exportó un intervalo distinto.')
@@ -376,11 +399,11 @@ def _download(config, day, credentials, folder, progress):
                     accept.first.click()
                 else:
                     # Clicking outside commits the native date widget.
-                    page.get_by_text(re.compile('^(Tiempo|Time)$')).filter(visible=True).first.click()
+                    ui_text(page, 'time').first.click()
                 if [entry.input_value() for entry in range_inputs.all()] != [start, end]:
                     raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
                 progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
-                with page.expect_response(lambda r: r.request.method == 'POST' and re.search(r'VehicleLogsCount|vehicle\w*count|passing\w*count', r.url, re.I), timeout=30000) as count_response:
+                with page.expect_response(lambda r: r.request.method == 'POST' and ANPR_COUNT_RESPONSE.search(r.url), timeout=30000) as count_response:
                     page.get_by_role('button', name=re.compile('^(Buscar|Search)$')).click()
                 response = count_response.value
                 if response.status != 200:
@@ -388,12 +411,12 @@ def _download(config, day, credentials, folder, progress):
                 evidence = response.json()
                 (folder / 'search-count.json').write_text(json.dumps(evidence, ensure_ascii=False), encoding='utf-8')
                 progress['message'] = 'No se pudo abrir el diálogo de exportación ANPR de HikCentral.'
-                export = visible_text(page, ['Exportar', 'Export']).first
+                export = ui_text(page, 'export').first
                 export.click()
                 dialog = page.locator('[role=dialog]:visible')
                 if not dialog.count():
                     # Versión nueva: panel lateral sin role=dialog; se toma el que contiene el formato.
-                    dialog = page.get_by_text(re.compile('^(Formato de archivo|File Format)$')).filter(visible=True).first.locator(
+                    dialog = ui_text(page, 'file_format').first.locator(
                         "xpath=ancestor::*[.//input[@type='password']][1]")
                 dialog.first.wait_for(timeout=15000)
                 dialog = dialog.first

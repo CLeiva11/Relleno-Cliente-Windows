@@ -154,6 +154,7 @@ CAPABILITY_PATHS = (
     '/ISAPI/Smart/capabilities',
     '/ISAPI/Intelligent/capabilities',
     '/ISAPI/System/Video/inputs/channels/{ch}/counting/capabilities',
+    '/ISAPI/System/Video/inputs/channels/{ch}/counting/search/capabilities',
     '/ISAPI/System/Video/inputs/channels/{ch}/counting',
 )
 
@@ -165,6 +166,34 @@ def counting_path(channel, suffix=''):
 def supported_counting_model(model):
     normalized = str(model or '').strip().upper()
     return normalized.startswith(('DS-2CD6825G0', 'IDS-2CD7146G0'))
+
+
+def counting_query_profile(raw):
+    """Extract non-secret query hints exposed by different ISAPI generations."""
+    try:
+        tree = xml_tree(raw)
+    except CameraError:
+        return {}
+    text = ET.tostring(tree, encoding='unicode').lower()
+    return {
+        'regions_tag': 'regionsID' if 'regionsid' in text else ('regionID' if 'regionid' in text else ''),
+        'supports_hour_interval': 'mintimeinterval' in text or '>hour<' in text,
+        'supports_daily': 'daily' in text,
+    }
+
+
+def query_variants(camera, region):
+    """Known safe bodies, ordered using the capabilities reported by the camera."""
+    profile = camera.get('counting_query_profile') or {}
+    variants = [
+        ('regionsID', region, True),
+        (None, None, True),
+        ('regionID', region, False),
+        (None, None, False),
+    ]
+    if profile.get('regions_tag') == 'regionID':
+        variants.insert(0, variants.pop(2))
+    return tuple(dict.fromkeys(variants))
 
 
 def video_channels(camera):
@@ -226,6 +255,14 @@ def probe(camera):
                        region_id=region, query_method='ISAPI counting/search · HTTP Digest',
                        counting_enabled=str(settings.findtext('enabled') or '').lower() == 'true',
                        counting_model_supported=supported_counting_model(model), channel_id=channel)
+        for suffix in ('/search/capabilities', '/capabilities'):
+            try:
+                profile = counting_query_profile(request(camera, counting_path(channel, suffix)))
+            except CameraError:
+                continue
+            if profile:
+                updated['counting_query_profile'] = profile
+                break
     else:
         updated.update(source_kind='', counting_enabled=False)
     creds = read_secret('camera/' + camera['external_id']) or read_secret('camera-default')
@@ -242,22 +279,30 @@ def parse_counts(raw, day, zone):
     tree = xml_tree(raw)
     if tree.tag != 'CountingStatisticsResult':
         raise CameraError('La cámara devolvió un formato estadístico no reconocido.')
-    if str(tree.findtext('responseStatus') or '').lower() != 'true':
+    response_status = str(tree.findtext('responseStatus') or '').lower()
+    if response_status and response_status not in ('true', 'ok', '1'):
         detail = next((str(tree.findtext(key) or '').strip() for key in (
             'statusString', 'subStatusCode', 'errorMsg', 'errorCode'
         ) if str(tree.findtext(key) or '').strip()), '')
         suffix = f' ({detail[:120]})' if detail else ''
         raise CameraError(f'La cámara rechazó la consulta estadística{suffix}; no se generaron ceros.')
-    elements = tree.findall('./matchList/matchElement')
+    elements = tree.findall('.//matchElement')
+    reported = tree.findtext('numOfMatches')
     try:
-        matches = int(tree.findtext('numOfMatches'))
-    except (TypeError, ValueError):
+        matches = len(elements) if reported in (None, '') else int(reported)
+    except ValueError:
         raise CameraError('La cámara no confirmó la cantidad de intervalos.') from None
     if not elements or matches != len(elements):
         raise CameraError('No hay datos completos para esa fecha; no se generaron ceros.')
     intervals = []
     for item in elements:
-        values = [item.findtext(k) for k in ('enterCount', 'exitCount')]
+        value_pairs = (
+            ('enterCount', 'exitCount'),
+            ('enterNum', 'exitNum'),
+            ('enterNumber', 'exitNumber'),
+        )
+        values = next(([item.findtext(k) for k in pair] for pair in value_pairs
+                       if all(item.findtext(k) is not None for k in pair)), [None, None])
         if any(v is None or not re.fullmatch(r'\d+', v) for v in values):
             raise CameraError('Falta Entradas o Salidas en un intervalo; no se reemplazó por cero.')
         try:
@@ -318,13 +363,7 @@ def extract_day(camera, day, timezone_name, centre_id=None):
                 # Hikvision v2 uses regionsID (plural) and MinTimeInterval. Some
                 # older firmware accepts only the minimal body, so retain those
                 # variants after the documented forms.
-                query_variants = (
-                    ('regionsID', region, True),
-                    (None, None, True),
-                    ('regionID', region, False),
-                    (None, None, False),
-                )
-                for region_tag, query_region, version_two in query_variants:
+                for region_tag, query_region, version_two in query_variants(camera, region):
                     attributes = (
                         {'version': '2.0', 'xmlns': 'http://www.isapi.org/ver20/XMLSchema'}
                         if version_two else {}
@@ -339,11 +378,20 @@ def extract_day(camera, day, timezone_name, centre_id=None):
                         ET.SubElement(root, 'MinTimeInterval').text = 'hour'
                     if region_tag and query_region is not None:
                         ET.SubElement(root, region_tag).text = query_region
-                    raw = request(
-                        camera,
-                        counting_path(camera.get('channel_id') or '1', '/search'),
-                        ET.tostring(root, encoding='utf-8'),
-                    )
+                    try:
+                        raw = request(
+                            camera,
+                            counting_path(camera.get('channel_id') or '1', '/search'),
+                            ET.tostring(root, encoding='utf-8'),
+                        )
+                    except CameraError as exc:
+                        # Old firmware reports unsupported XML bodies as an HTTP
+                        # error. Authentication, TLS and connectivity errors must
+                        # still stop immediately and are never blindly retried.
+                        if not re.search(r'HTTP (400|404|405|415|422)\b', str(exc)):
+                            raise
+                        errors.append(str(exc))
+                        continue
                     (folder / ('source-' + uuid.uuid4().hex + '.xml')).write_bytes(raw)
                     try:
                         intervals = parse_counts(raw, day, zone)

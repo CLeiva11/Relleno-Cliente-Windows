@@ -5,11 +5,17 @@ import unittest
 from unittest.mock import Mock, patch
 
 from relleno.anpr import Outbox
-from relleno.hcp_export import download, export_day, login_controls, pending_days, ExportError
+from relleno.hcp_export import (download, export_day, login_controls, pending_days,
+                                ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError)
 from relleno.anpr_schedule import Scheduler
 
 
 class ExportTests(unittest.TestCase):
+    def test_hikcentral_profiles_cover_localized_routes(self):
+        self.assertIn('Vehicles', HIKCENTRAL_UI['module'])
+        self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/anprVehicleTotal'))
+        self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/VehicleLogsCount'))
+
     def config(self):
         return {'binding':{'centre_id':'test-centre','agent_id':'test-agent','upload_url':'/api/anpr/'},
                 'hikcentral':{'url':'https://localhost'},'timezone':'America/Santiago',

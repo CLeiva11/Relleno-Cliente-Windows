@@ -1,6 +1,11 @@
-# Entrega 0.4.15
+# Entrega 0.4.16
 
-Ejecute `dist/RellenoCliente-Setup-0.4.15.exe` en Windows x64 con su usuario habitual.
+La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
+de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
+español e inglés; una versión desconocida se detiene y genera diagnóstico, sin
+crear conteos en cero ni exportar otro intervalo.
+
+Ejecute `dist/RellenoCliente-Setup-0.4.16.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
