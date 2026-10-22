@@ -1,11 +1,11 @@
-# Entrega 0.4.16
+# Entrega 0.4.17
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
 español e inglés; una versión desconocida se detiene y genera diagnóstico, sin
 crear conteos en cero ni exportar otro intervalo.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.16.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.17.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
@@ -43,11 +43,13 @@ libera tras un reinicio. Consultas repetidas reutilizan el lote local conservado
 ## ANPR: exportación y envío
 
 En la pestaña ANPR puede elegir una fecha terminada y usar **Exportar de HikCentral
-y enviar**. El cliente inicia sesión en su portal web, selecciona las cámaras
-ANPR, fija el día completo y descarga el Excel nativo sin imágenes. Confirma la
-contraseña de exportación con la credencial de Windows. Se utiliza Microsoft Edge
-en segundo plano, sin descargar otro navegador. No requiere AppKey/SecretKey.
-Se comprobaron la exportación web y su recepción real para tres cámaras del piloto.
+y enviar**. El cliente inicia sesión en su portal web, selecciona las cámaras ANPR
+y fija el día completo. En versiones `Bumblebee/VehicleBiz/V0` reconoce el tráfico
+autenticado, pagina `VehicleLogs` y exige que las filas coincidan exactamente con
+`VehicleLogsCount`; además rechaza páginas repetidas o fechas ajenas. La sesión y
+sus cookies quedan dentro de Edge y no se copian a configuración ni diagnósticos.
+Para otras versiones conserva como respaldo la descarga Excel nativa sin imágenes.
+Se utiliza Microsoft Edge en segundo plano y no requiere AppKey/SecretKey.
 
 Active la exportación diaria para procesar los días terminados a partir de la
 01:00 en la zona horaria del centro. El monitor arranca al iniciar sesión en
@@ -79,9 +81,10 @@ contrato disponible del servidor no garantiza idempotencia remota ante un timeou
 Se envía un Idempotency-Key estable; reintentar automáticamente respuestas ambiguas
 requiere que el portal confirme esa garantía. No se afirma entrega sin ID.
 
-Los cambios de interfaz web de HikCentral pueden requerir actualizar el adaptador.
-No se generan conteos cero ante un fallo de consulta ni se fabrican Excel a partir
-de JSON. Un fallo de autenticación no provoca intentos indefinidos.
+Los adaptadores de red están separados por familia para incorporar otras versiones
+sin mezclar sus contratos. Los cambios de interfaz o API pueden requerir uno nuevo.
+No se generan conteos cero ni archivos parciales ante un fallo de consulta. Un
+fallo de autenticación no provoca intentos indefinidos.
 
 El servicio envía un pulso cada minuto y consulta órdenes del portal cada 15
 segundos. Desde Comprobaciones se puede solicitar Personas o ANPR para un día

@@ -14,10 +14,10 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
-## Instalador 0.4.16
+## Instalador 0.4.17
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El archivo es `RellenoCliente-Setup-0.4.16.exe`. Incluye exportación ANPR diaria
+El archivo es `RellenoCliente-Setup-0.4.17.exe`. Incluye extracción ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de
 desarrollo después de instalar. Usa Microsoft Edge instalado en Windows.
@@ -47,5 +47,7 @@ identifica cada cámara por ID/IP; la región comercial se obtiene de la tabla
 - El endpoint autenticado para archivos ANPR ya está definido.
 - El endpoint para conteos de Personas está habilitado y se devuelve durante la
   vinculación junto con los endpoints de pulso y órdenes remotas.
-- ANPR usa la exportación Excel nativa del portal web de HikCentral con las
-  credenciales locales guardadas; no necesita AppKey para este método.
+- ANPR detecta adaptadores por familia de endpoints autenticados. La familia
+  `Bumblebee/VehicleBiz/V0` pagina `VehicleLogs` y verifica sus filas contra
+  `VehicleLogsCount`; otras versiones conservan la exportación web como respaldo.
+  No necesita AppKey para estos métodos.
