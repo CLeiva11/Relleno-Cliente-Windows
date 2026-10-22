@@ -501,7 +501,7 @@ class App:
         secret = self.field(frame, 'Contraseña o SecretKey', secret=True)
         status = ttk.Label(frame, text=current.get('connection_status', 'Sin comprobar'), wraplength=950)
         status.pack(anchor='w', pady=10)
-        ttk.Label(frame, text='Use la misma dirección que abre el portal web de HikCentral en Edge; 127.0.0.1 solo corresponde si el servidor está instalado en este PC.\nCredenciales guardadas en Windows. Los campos vacíos conservan las existentes.', wraplength=950).pack(anchor='w', pady=12)
+        ttk.Label(frame, text='Use la misma dirección que abre el portal web de HikCentral en el navegador; puede ser 127.0.0.1 cuando el Web Client está instalado en este PC.\nCredenciales guardadas en Windows. Los campos vacíos conservan las existentes.', wraplength=950).pack(anchor='w', pady=12)
         def persist():
             value = normalize_url(url.get())
             if account.get() or secret.get():
