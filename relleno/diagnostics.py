@@ -32,4 +32,11 @@ def export(destination=None):
             for path in web.iterdir():
                 if path.is_file():
                     archive.write(path, Path('hikcentral') / path.name)
+        failed_queries = sorted(
+            (ROOT / 'batches').glob('*/source-*.xml') if (ROOT / 'batches').exists() else [],
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )[:50]
+        for path in failed_queries:
+            archive.write(path, Path('consultas-personas') / path.parent.name / path.name)
     return target

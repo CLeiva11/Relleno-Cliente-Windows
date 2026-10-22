@@ -315,19 +315,30 @@ def extract_day(camera, day, timezone_name, centre_id=None):
                     return json.loads(report.read_text(encoding='utf-8'))
                 errors = []
                 intervals = None
-                # Dedicated counters expect regionID; DeepinView global rules can
-                # reject that element. One configured region makes both queries
-                # semantically equivalent.
-                for query_region in (region, None):
-                    root = ET.Element('CountingStatisticsDescription')
+                # Hikvision v2 uses regionsID (plural) and MinTimeInterval. Some
+                # older firmware accepts only the minimal body, so retain those
+                # variants after the documented forms.
+                query_variants = (
+                    ('regionsID', region, True),
+                    (None, None, True),
+                    ('regionID', region, False),
+                    (None, None, False),
+                )
+                for region_tag, query_region, version_two in query_variants:
+                    attributes = (
+                        {'version': '2.0', 'xmlns': 'http://www.isapi.org/ver20/XMLSchema'}
+                        if version_two else {}
+                    )
+                    root = ET.Element('CountingStatisticsDescription', attributes)
                     ET.SubElement(root, 'statisticType').text = 'all'
                     ET.SubElement(root, 'reportType').text = 'daily'
                     span = ET.SubElement(ET.SubElement(root, 'timeSpanList'), 'timeSpan')
                     ET.SubElement(span, 'startTime').text = day.isoformat() + 'T00:00:00'
                     ET.SubElement(span, 'endTime').text = day.isoformat() + 'T23:59:59'
-                    ET.SubElement(root, 'child').text = 'false'
-                    if query_region is not None:
-                        ET.SubElement(root, 'regionID').text = query_region
+                    if version_two:
+                        ET.SubElement(root, 'MinTimeInterval').text = 'hour'
+                    if region_tag and query_region is not None:
+                        ET.SubElement(root, region_tag).text = query_region
                     raw = request(
                         camera,
                         counting_path(camera.get('channel_id') or '1', '/search'),

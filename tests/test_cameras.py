@@ -131,8 +131,10 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(result['intervals'][0]['exits'], 3)
         first_body = request.call_args_list[0].args[2]
         second_body = request.call_args_list[1].args[2]
-        self.assertIn(b'<regionID>1</regionID>', first_body)
-        self.assertNotIn(b'<regionID>', second_body)
+        self.assertIn(b'<regionsID>1</regionsID>', first_body)
+        self.assertIn(b'<MinTimeInterval>hour</MinTimeInterval>', first_body)
+        self.assertNotIn(b'<regionsID>', second_body)
+        self.assertNotIn(b'<child>', first_body)
 
 
 class ProbeCapabilityTests(unittest.TestCase):
