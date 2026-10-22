@@ -1,23 +1,23 @@
-# Entrega 0.4.17
+# Entrega 0.4.18
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
 español e inglés; una versión desconocida se detiene y genera diagnóstico, sin
 crear conteos en cero ni exportar otro intervalo.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.17.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.18.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
 centro queda fijado por el portal. Si ya está vinculado, se muestra directamente
 el centro y se oculta el formulario.
 En Cámaras, importe cuatro columnas (Nombre, Nivel, Grupo, IP), guarde credenciales
-compartidas y pulse Probar todas. Se detectan ID estable, modelo, firmware y región.
+compartidas y pulse Probar cámaras. Se detectan ID estable, modelo, firmware y región.
 Puede agregar/editar o quitar cámaras; cada una admite credenciales propias.
 Nivel y grupo se conservan separados de la región de conteo detectada.
-En HikCentral, configure dirección y autenticación y pruebe el acceso web. Si usa
-un certificado privado, confirme primero su huella con **Confiar en certificado
-local**.
+En HikCentral, configure dirección y autenticación y use **Guardar y comprobar**.
+Los certificados privados de HikCentral y cámaras se fijan automáticamente por
+huella cuando la dirección pertenece a la red local.
 Las direcciones sin protocolo se completan con HTTPS. La prueba web no autentica
 al usuario. La exportación se valida desde ANPR. La huella confirmada solo autoriza
 el certificado de ese HikCentral; no desactiva TLS del portal de Relleno.

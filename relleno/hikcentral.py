@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import socket
 import ssl
 from urllib.parse import urljoin, urlsplit
@@ -37,6 +38,22 @@ def read_certificate_fingerprint(value):
     if not certificate:
         raise ValueError('HikCentral no entregó un certificado HTTPS.')
     return hashlib.sha256(certificate).hexdigest()
+
+
+def is_local_url(value):
+    parsed = urlsplit(normalize_url(value))
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(
+            parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM
+        )}
+        return bool(addresses) and all(
+            ipaddress.ip_address(address).is_private
+            or ipaddress.ip_address(address).is_loopback
+            or ipaddress.ip_address(address).is_link_local
+            for address in addresses
+        )
+    except (OSError, ValueError):
+        return False
 
 
 class PinnedAdapter(HTTPAdapter):

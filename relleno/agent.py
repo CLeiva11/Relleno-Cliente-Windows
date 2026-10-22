@@ -41,6 +41,10 @@ def complete_command(config, command, state, message, receipt_ids=None):
 
 
 def generate_people(config, day):
+    fingerprints_before = {
+        (camera.get('external_id'), camera.get('ip')): camera.get('https_fingerprint')
+        for camera in config.get('cameras', [])
+    }
     refreshed = []
     errors = []
     probed = False
@@ -54,14 +58,14 @@ def generate_people(config, day):
                 current = dict(current, connection_status=str(exc))
                 errors.append(f"{camera.get('name', 'Cámara')}: {exc}")
         refreshed.append(current)
-    if probed:
-        config['cameras'] = refreshed
-        save(config)
+    config['cameras'] = refreshed
     cameras = [
         camera for camera in refreshed
         if camera.get('counting_enabled') and camera.get('source_kind') == 'people_counter'
     ]
     if not cameras:
+        if probed:
+            save(config)
         detail = ' | '.join(errors[:5])
         raise ValueError(detail or 'No hay cámaras de Personas configuradas y habilitadas.')
     receipts = []
@@ -74,6 +78,14 @@ def generate_people(config, day):
             receipts.append(send_batch(config['binding'], batch))
         except Exception as exc:
             errors.append(f"{camera.get('name', 'Cámara')}: {exc}")
+    # HTTPS trust-on-first-use can be discovered during extraction even when a
+    # camera had already been probed. Persist the pin before the worker reloads.
+    pin_changed = any(
+        fingerprints_before.get((camera.get('external_id'), camera.get('ip'))) != camera.get('https_fingerprint')
+        for camera in refreshed
+    )
+    if probed or pin_changed:
+        save(config)
     if errors:
         raise ValueError('No se completaron todas las cámaras. ' + ' | '.join(errors[:5]))
     return receipts

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch
-from relleno.hikcentral import normalize_url, check, read_certificate_fingerprint
+from relleno.hikcentral import normalize_url, check, is_local_url, read_certificate_fingerprint
 
 
 class HikCentralTests(unittest.TestCase):
@@ -61,3 +61,9 @@ class HikCentralTests(unittest.TestCase):
 
         session.return_value.__enter__.return_value.mount.assert_called_once()
         self.assertFalse(request.call_args.kwargs['verify'])
+
+    @patch('relleno.hikcentral.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 443))])
+    def test_local_hikcentral_url_is_detected(self, resolve):
+        self.assertTrue(is_local_url('https://localhost'))
+        resolve.return_value = [(2, 1, 6, '', ('8.8.8.8', 443))]
+        self.assertFalse(is_local_url('https://example.com'))

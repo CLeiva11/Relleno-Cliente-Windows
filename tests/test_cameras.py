@@ -97,6 +97,22 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(send.call_count, 1)
         self.assertEqual(session.return_value.request.call_count, 1)
 
+    @patch('relleno.cameras.read_camera_certificate_fingerprint', return_value='cd' * 32)
+    @patch('relleno.cameras.is_local_camera_host', return_value=True)
+    @patch('relleno.cameras.read_secret', return_value={'username': 'user', 'password': 'secret'})
+    @patch('relleno.cameras.requests.Session')
+    @patch('relleno.cameras.requests.request', side_effect=__import__('requests').exceptions.ConnectionError)
+    def test_https_only_local_camera_is_pinned_automatically(self, send, session, secret, local, fingerprint):
+        session.return_value.request.return_value = Mock(
+            status_code=200, content=b'<DeviceInfo/>', headers={},
+            url='https://192.168.1.20/ISAPI/System/deviceInfo',
+        )
+        camera = {'external_id': '20', 'ip': '192.168.1.20'}
+
+        self.assertEqual(request(camera, '/ISAPI/System/deviceInfo'), b'<DeviceInfo/>')
+        self.assertEqual(camera['https_fingerprint'], 'cd' * 32)
+        fingerprint.assert_called_once_with('192.168.1.20')
+
     @patch('relleno.cameras.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('192.168.1.20', 443))])
     def test_local_camera_host_accepts_only_private_resolution(self, resolve):
         self.assertTrue(is_local_camera_host('camera.local'))

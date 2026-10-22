@@ -14,10 +14,10 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
-## Instalador 0.4.17
+## Instalador 0.4.18
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El archivo es `RellenoCliente-Setup-0.4.17.exe`. Incluye extracción ANPR diaria
+El archivo es `RellenoCliente-Setup-0.4.18.exe`. Incluye extracción ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de
 desarrollo después de instalar. Usa Microsoft Edge instalado en Windows.

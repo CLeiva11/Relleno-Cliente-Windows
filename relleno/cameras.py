@@ -74,6 +74,14 @@ def is_local_camera_host(host):
         return False
 
 
+def trust_local_camera_https(camera):
+    """Pin the first HTTPS certificate only for private/local camera addresses."""
+    if not is_local_camera_host(camera['ip']):
+        return False
+    camera['https_fingerprint'] = read_camera_certificate_fingerprint(camera['ip'])
+    return True
+
+
 def xml_tree(content):
     try:
         tree = ET.fromstring(content)
@@ -108,6 +116,12 @@ def request(camera, path, body=None):
         if fingerprint:
             raise CameraError('El certificado HTTPS de la cámara cambió; se bloqueó la conexión.') from None
         raise CameraError('No se pudo verificar el certificado HTTPS de la cámara.') from None
+    except requests.exceptions.ConnectionError:
+        # Some cameras expose only port 443 and therefore cannot issue an HTTP
+        # redirect. Trust on first use is restricted to private/local networks.
+        if not fingerprint and trust_local_camera_https(camera):
+            return request(camera, path, body)
+        raise CameraError('No se pudo conectar con la cámara.') from None
     except requests.RequestException:
         raise CameraError('No se pudo conectar con la cámara.') from None
     finally:
@@ -126,12 +140,11 @@ def request(camera, path, body=None):
                 f'La cámara respondió HTTP {response.status_code} hacia otro servidor; no se reenviaron credenciales.'
             )
         if source.scheme == 'http' and target.scheme == 'https':
-            if is_local_camera_host(camera['ip']):
-                camera['https_fingerprint'] = read_camera_certificate_fingerprint(camera['ip'])
+            if trust_local_camera_https(camera):
                 return request(camera, path, body)
             raise CameraError(
                 f'La cámara respondió HTTP {response.status_code} porque exige HTTPS. '
-                'Seleccione la cámara y use Confiar HTTPS seleccionada.'
+                'La aceptación automática solo está habilitada para direcciones de red local.'
             )
         if not target.path.startswith('/ISAPI/'):
             raise CameraError(

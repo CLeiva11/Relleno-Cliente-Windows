@@ -44,6 +44,29 @@ class AgentTests(unittest.TestCase):
         save.assert_called_once_with(config)
         extract.assert_called_once_with(detected, '2026-10-20', 'America/Santiago', 'centre')
 
+    @patch('relleno.agent.save')
+    @patch('relleno.agent.send_batch', return_value='receipt-1')
+    @patch('relleno.agent.extract_day')
+    def test_people_command_persists_certificate_pinned_during_extraction(self, extract, send, save):
+        camera = {
+            'external_id': '101', 'ip': '192.168.1.101', 'name': 'Acceso',
+            'source_kind': 'people_counter', 'counting_enabled': True,
+        }
+        config = {
+            'binding': {'centre_id': 'centre'}, 'timezone': 'America/Santiago',
+            'cameras': [camera],
+        }
+
+        def pin_certificate(current, *_args):
+            current['https_fingerprint'] = 'abc123'
+            return {'batch_id': 'batch-1'}
+
+        extract.side_effect = pin_certificate
+
+        self.assertEqual(generate_people(config, '2026-10-20'), ['receipt-1'])
+        save.assert_called_once_with(config)
+        self.assertEqual(config['cameras'][0]['https_fingerprint'], 'abc123')
+
     @patch('relleno.agent.generate_anpr', return_value=['receipt-anpr'])
     def test_vehicle_command_reuses_anpr_pipeline(self, generate):
         config = {'binding': {'centre_id': 'centre'}}

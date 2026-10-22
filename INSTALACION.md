@@ -1,6 +1,6 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.4.17.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.18.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
@@ -21,7 +21,7 @@
 7. Compruebe en Inicio que el portal confirma la señal. Desde Comprobaciones podrá
    solicitar Personas o ANPR para un día terminado sin afectar la programación.
 8. En Conteos, active la extracción diaria de Personas si el centro utiliza cámaras
-   DS-2CD6825G0/C-IVS o iDS-2CD7146G0-IZS y confirme que Probar todas detecta el
+   DS-2CD6825G0/C-IVS o iDS-2CD7146G0-IZS y confirme que Probar cámaras detecta el
    conteo habilitado.
 
 El instalador es reutilizable; la configuración es propia de cada equipo. No
@@ -36,10 +36,9 @@ limpio antes de usar el código del nuevo centro.
 
 Las credenciales y el token se guardan en Windows Credential Manager. Configuración,
 fuentes y cola permanecen en `%LOCALAPPDATA%/RellenoCliente`, fuera del repositorio
-y del instalador. Cuando HikCentral usa un certificado privado o autofirmado, use
-**Confiar en certificado local**, confirme su huella SHA-256 y luego pruebe la
-conexión. La confianza queda limitada a ese certificado y se invalida al cambiar
-la dirección configurada.
+y del instalador. Los certificados privados o autofirmados de direcciones locales
+se detectan al probar la configuración y quedan fijados por su huella SHA-256.
+La confianza se invalida al cambiar la dirección configurada.
 
 La exportación web se validó en el piloto; otra versión o idioma de HikCentral
 puede requerir ajustar el adaptador. No se necesitan AppKey/SecretKey para este

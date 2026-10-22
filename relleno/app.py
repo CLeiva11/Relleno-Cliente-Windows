@@ -53,6 +53,17 @@ class App:
         widget.pack(fill='x')
         return var
 
+    def action_menu(self, parent, items, text='Más acciones'):
+        button = ttk.Menubutton(parent, text=text)
+        menu = tk.Menu(button, tearoff=False)
+        for label, command in items:
+            if label is None:
+                menu.add_separator()
+            else:
+                menu.add_command(label=label, command=command)
+        button.configure(menu=menu)
+        return button
+
     def guarded(self, action):
         try:
             action()
@@ -156,8 +167,6 @@ class App:
 
     def anpr(self, frame):
         ttk.Label(frame, text='Envíe los Excel originales de HikCentral a Comprobaciones. La corrección se confirma en el portal.', wraplength=980).pack(anchor='w')
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill='x', pady=10)
         def send_files():
             if not self.config.get('binding'):
                 messagebox.showinfo('Vinculación pendiente', 'Vincule este equipo desde Inicio.')
@@ -171,11 +180,8 @@ class App:
                     self.outbox.add(path, config['binding'])
                 return self.outbox.drain(config)
             self.background('Conservando originales y enviando ANPR…', work, self.anpr_result)
-        ttk.Button(buttons, text='Seleccionar Excel y enviar', command=send_files).pack(side='left')
-        ttk.Button(buttons, text='Enviar pendientes', command=lambda: self.background('Enviando ANPR pendiente…', lambda: self.outbox.drain(), self.anpr_result)).pack(side='left', padx=8)
-        ttk.Button(buttons, text='Abrir Comprobaciones', command=lambda: webbrowser.open('https://siem.domoticatechnology.cl/relleno/comprobaciones/')).pack(side='left')
         export_row = ttk.Frame(frame)
-        export_row.pack(fill='x', pady=(0, 8))
+        export_row.pack(fill='x', pady=10)
         ttk.Label(export_row, text='Fecha ANPR (AAAA-MM-DD):').pack(side='left')
         day = tk.StringVar(value=str((datetime.now(ZoneInfo(self.config['timezone']))-timedelta(days=1)).date()))
         ttk.Entry(export_row, textvariable=day, width=14).pack(side='left', padx=8)
@@ -191,7 +197,17 @@ class App:
                 export_and_enqueue(config, selected, self.outbox)
                 return self.outbox.drain(config)
             self.background('HikCentral está preparando el Excel original y su envío…', work, self.anpr_result)
-        ttk.Button(export_row, text='Exportar de HikCentral y enviar', command=export).pack(side='left')
+        ttk.Button(export_row, text='Generar y enviar', command=export).pack(side='left')
+        self.action_menu(export_row, [
+            ('Enviar Excel manual…', send_files),
+            ('Reintentar pendientes', lambda: self.background(
+                'Enviando ANPR pendiente…', lambda: self.outbox.drain(), self.anpr_result
+            )),
+            (None, None),
+            ('Abrir Comprobaciones', lambda: webbrowser.open(
+                'https://siem.domoticatechnology.cl/relleno/comprobaciones/'
+            )),
+        ]).pack(side='left', padx=8)
         body = ttk.Frame(frame)
         body.pack(fill='both', expand=True)
         self.anpr_table = ttk.Treeview(body, columns=('file', 'state', 'receipt'), show='headings', height=7)
@@ -284,12 +300,14 @@ class App:
         self.table.pack(fill='both', expand=True)
         buttons = ttk.Frame(frame)
         buttons.pack(fill='x', pady=10)
-        ttk.Button(buttons, text='Importar lista', command=self.import_dialog).pack(side='left')
-        ttk.Button(buttons, text='Agregar / editar', command=self.edit_camera).pack(side='left', padx=8)
-        ttk.Button(buttons, text='Probar todas', command=self.test_cameras).pack(side='left')
-        ttk.Button(buttons, text='Confiar HTTPS seleccionada', command=self.trust_camera_https).pack(side='left', padx=(6, 0))
-        ttk.Button(buttons, text='Exportar diagnóstico', command=self.export_diagnostics).pack(side='left', padx=(6, 0))
-        ttk.Button(buttons, text='Quitar seleccionada', command=self.remove_camera).pack(side='left', padx=8)
+        ttk.Button(buttons, text='Importar cámaras', command=self.import_dialog).pack(side='left')
+        ttk.Button(buttons, text='Probar cámaras', command=self.test_cameras).pack(side='left', padx=8)
+        self.action_menu(buttons, [
+            ('Agregar o editar seleccionada', self.edit_camera),
+            ('Quitar seleccionada', self.remove_camera),
+            (None, None),
+            ('Exportar diagnóstico', self.export_diagnostics),
+        ], text='Administrar').pack(side='left')
         credentials = ttk.LabelFrame(frame, text='Credenciales compartidas de cámaras', padding=10)
         credentials.pack(fill='x')
         user = self.field(credentials, 'Usuario', secret=True)
@@ -327,7 +345,7 @@ class App:
             save(self.config)
             self.refresh()
             win.destroy()
-            self.status_text.set('Lista importada. Use Probar todas para detectar los datos de las cámaras.')
+            self.status_text.set('Lista importada. Use Probar cámaras para detectar sus datos.')
         ttk.Button(win, text='Importar lista', command=lambda: self.guarded(persist)).pack(pady=12)
 
     def edit_camera(self):
@@ -378,35 +396,6 @@ class App:
             self.config['cameras'].pop(int(self.table.selection()[0]))
             save(self.config)
             self.refresh()
-
-    def trust_camera_https(self):
-        selection = self.table.selection()
-        if not selection:
-            messagebox.showinfo('Seleccione una cámara', 'Seleccione primero la cámara que respondió HTTP 302.')
-            return
-        index = int(selection[0])
-        camera = self.config['cameras'][index]
-        from relleno.cameras import read_camera_certificate_fingerprint
-        def done(fingerprint):
-            formatted = ':'.join(fingerprint[position:position + 2] for position in range(0, len(fingerprint), 2)).upper()
-            accepted = messagebox.askyesno(
-                'Confiar en HTTPS de la cámara',
-                f"{camera['name']} ({camera['ip']}) presentó esta huella SHA-256:\n\n{formatted}\n\n"
-                'Confirme solo si corresponde a la cámara seleccionada.'
-            )
-            if not accepted:
-                self.status_text.set('Certificado de cámara no confirmado')
-                return
-            self.config['cameras'][index]['https_fingerprint'] = fingerprint
-            self.config['cameras'][index]['connection_status'] = 'HTTPS confirmado; pendiente de probar'
-            save(self.config)
-            self.refresh()
-            self.status_text.set('Certificado HTTPS guardado; use Probar todas')
-        self.background(
-            f"Leyendo certificado HTTPS de {camera['name']}…",
-            lambda: read_camera_certificate_fingerprint(camera['ip']),
-            done,
-        )
 
     def export_diagnostics(self):
         from relleno.diagnostics import export
@@ -523,7 +512,7 @@ class App:
         ).pack(anchor='w', pady=5)
 
     def hikcentral(self, frame):
-        from relleno.hikcentral import normalize_url, check, read_certificate_fingerprint
+        from relleno.hikcentral import normalize_url, check, read_certificate_fingerprint, is_local_url
         current = self.config.get('hikcentral', {})
         url = self.field(frame, 'Dirección web real del servidor HikCentral (URL con puerto)', current.get('url', ''))
         method = self.field(frame, 'Autenticación', current.get('method', 'username'), choices=('username', 'appkey'))
@@ -532,68 +521,37 @@ class App:
         status = ttk.Label(frame, text=current.get('connection_status', 'Sin comprobar'), wraplength=950)
         status.pack(anchor='w', pady=10)
         ttk.Label(frame, text='Use la misma dirección que abre el portal web de HikCentral en el navegador; puede ser 127.0.0.1 cuando el Web Client está instalado en este PC.\nCredenciales guardadas en Windows. Los campos vacíos conservan las existentes.', wraplength=950).pack(anchor='w', pady=12)
-        def persist():
+        def persist_and_test():
             value = normalize_url(url.get())
             if account.get() or secret.get():
                 if not account.get() or not secret.get():
                     raise ValueError('Ingrese ambas partes de la credencial.')
                 store_secret('hikcentral', {'method': method.get(), 'account': account.get(), 'secret': secret.get()})
             previous = self.config.get('hikcentral', {})
-            self.config['hikcentral'] = previous | {'url': value, 'method': method.get()}
+            settings = previous | {'url': value, 'method': method.get()}
             if previous.get('url') != value:
-                self.config['hikcentral'].pop('certificate_sha256', None)
+                settings.pop('certificate_sha256', None)
+            settings['connection_status'] = 'Comprobando conexión…'
+            self.config['hikcentral'] = settings
             save(self.config)
+            status.config(text=settings['connection_status'])
             account.set('')
             secret.set('')
-            self.status_text.set('HikCentral guardado. Puede exportar y enviar desde la pestaña ANPR.')
-        ttk.Button(frame, text='Guardar', command=lambda: self.guarded(persist)).pack(anchor='w', pady=8)
-        def test():
-            try:
-                value = normalize_url(url.get())
-            except ValueError as exc:
-                messagebox.showerror('Dirección inválida', str(exc))
-                return
-            settings = self.config.get('hikcentral', {})
-            if value != settings.get('url'):
-                messagebox.showinfo('Guarde la dirección', 'Guarde la dirección antes de probarla.')
-                return
+            def work():
+                if value.startswith('https://') and is_local_url(value):
+                    settings['certificate_sha256'] = read_certificate_fingerprint(value)
+                    self.config['hikcentral'] = settings
+                    save(self.config)
+                return check(settings)
             def done(message):
-                self.config['hikcentral']['connection_status'] = message
+                settings['connection_status'] = message
+                self.config['hikcentral'] = settings
                 save(self.config)
                 status.config(text=message)
-            self.background('Comprobando portal de HikCentral…', lambda: check(settings), done)
-        ttk.Button(frame, text='Probar conexión web', command=test).pack(anchor='w', pady=8)
-        def trust_certificate():
-            try:
-                value = normalize_url(url.get())
-            except ValueError as exc:
-                messagebox.showerror('Dirección inválida', str(exc))
-                return
-            if value != self.config.get('hikcentral', {}).get('url'):
-                messagebox.showinfo('Guarde la dirección', 'Guarde la dirección antes de leer su certificado.')
-                return
-            def done(fingerprint):
-                formatted = ':'.join(fingerprint[index:index + 2] for index in range(0, len(fingerprint), 2)).upper()
-                accepted = messagebox.askyesno(
-                    'Confiar en certificado de HikCentral',
-                    'Se recibió este certificado desde la dirección configurada:\n\n'
-                    + formatted
-                    + '\n\nConfirme solo si esta dirección pertenece al HikCentral del centro.'
-                )
-                if not accepted:
-                    self.status_text.set('Certificado no confirmado')
-                    return
-                self.config['hikcentral']['certificate_sha256'] = fingerprint
-                self.config['hikcentral']['connection_status'] = 'Certificado local confirmado; falta probar la conexión.'
-                save(self.config)
-                status.config(text=self.config['hikcentral']['connection_status'])
-                self.status_text.set('Certificado de HikCentral guardado y fijado por huella SHA-256')
-            self.background(
-                'Leyendo certificado de HikCentral…',
-                lambda: read_certificate_fingerprint(value),
-                done,
-            )
-        ttk.Button(frame, text='Confiar en certificado local', command=trust_certificate).pack(anchor='w', pady=8)
+            self.background('Guardando y comprobando HikCentral…', work, done)
+        ttk.Button(
+            frame, text='Guardar y comprobar', command=lambda: self.guarded(persist_and_test)
+        ).pack(anchor='w', pady=8)
         ttk.Label(frame, text='Las siete cámaras de conteo se consultan directamente; no requieren AppKey de HikCentral.\nPara ANPR se conservarán los XLS/XLSX/XLSM originales; no se generarán a partir de los conteos.', wraplength=950).pack(anchor='w', pady=12)
 
 
