@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
-from relleno.cameras import parse_counts, parse_inventory, request, supported_counting_model, CameraError, host_url
+from relleno.cameras import is_local_camera_host, parse_counts, parse_inventory, request, supported_counting_model, CameraError, host_url
 
 
 def report(entries='0', exits='3', count='1', start='2026-10-19T00:00:00', end='2026-10-19T00:59:59'):
@@ -62,18 +62,31 @@ class CameraTests(unittest.TestCase):
         with self.assertRaisesRegex(CameraError, 'login web.*Digest'):
             request(camera, '/ISAPI/System/deviceInfo')
 
+    @patch('relleno.cameras.read_camera_certificate_fingerprint', return_value='ab' * 32)
     @patch('relleno.cameras.read_secret', return_value={'username': 'user', 'password': 'secret'})
+    @patch('relleno.cameras.requests.Session')
     @patch('relleno.cameras.requests.request')
-    def test_https_redirect_does_not_resend_credentials(self, send, secret):
+    def test_private_camera_https_redirect_is_pinned_and_retried(self, send, session, secret, fingerprint):
         send.return_value = Mock(
             status_code=302,
             headers={'Location': 'https://192.168.1.20/ISAPI/System/deviceInfo'},
             url='http://192.168.1.20/ISAPI/System/deviceInfo',
         )
+        session.return_value.request.return_value = Mock(
+            status_code=200, content=b'<DeviceInfo/>', headers={},
+            url='https://192.168.1.20/ISAPI/System/deviceInfo',
+        )
         camera = {'external_id': '20', 'ip': '192.168.1.20'}
-        with self.assertRaisesRegex(CameraError, 'exige HTTPS'):
-            request(camera, '/ISAPI/System/deviceInfo')
+        self.assertEqual(request(camera, '/ISAPI/System/deviceInfo'), b'<DeviceInfo/>')
+        self.assertEqual(camera['https_fingerprint'], 'ab' * 32)
         self.assertEqual(send.call_count, 1)
+        self.assertEqual(session.return_value.request.call_count, 1)
+
+    @patch('relleno.cameras.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('192.168.1.20', 443))])
+    def test_local_camera_host_accepts_only_private_resolution(self, resolve):
+        self.assertTrue(is_local_camera_host('camera.local'))
+        resolve.return_value = [(2, 1, 6, '', ('8.8.8.8', 443))]
+        self.assertFalse(is_local_camera_host('camera.example'))
 
     @patch('relleno.cameras.read_secret', return_value={'username': 'user', 'password': 'secret'})
     @patch('relleno.cameras.requests.Session')

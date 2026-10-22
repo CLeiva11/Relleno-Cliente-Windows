@@ -60,6 +60,20 @@ def read_camera_certificate_fingerprint(host):
     return hashlib.sha256(certificate).hexdigest()
 
 
+def is_local_camera_host(host):
+    parsed = urlsplit(host_url(host))
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)}
+        return bool(addresses) and all(
+            ipaddress.ip_address(address).is_private
+            or ipaddress.ip_address(address).is_loopback
+            or ipaddress.ip_address(address).is_link_local
+            for address in addresses
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def xml_tree(content):
     try:
         tree = ET.fromstring(content)
@@ -90,6 +104,10 @@ def request(camera, path, body=None):
                           auth=HTTPDigestAuth(secret['username'], secret['password']),
                           data=body, headers={'Content-Type': 'application/xml'},
                           timeout=(5, 20), allow_redirects=False, verify=verify)
+    except requests.exceptions.SSLError:
+        if fingerprint:
+            raise CameraError('El certificado HTTPS de la cámara cambió; se bloqueó la conexión.') from None
+        raise CameraError('No se pudo verificar el certificado HTTPS de la cámara.') from None
     except requests.RequestException:
         raise CameraError('No se pudo conectar con la cámara.') from None
     finally:
@@ -108,6 +126,9 @@ def request(camera, path, body=None):
                 f'La cámara respondió HTTP {response.status_code} hacia otro servidor; no se reenviaron credenciales.'
             )
         if source.scheme == 'http' and target.scheme == 'https':
+            if is_local_camera_host(camera['ip']):
+                camera['https_fingerprint'] = read_camera_certificate_fingerprint(camera['ip'])
+                return request(camera, path, body)
             raise CameraError(
                 f'La cámara respondió HTTP {response.status_code} porque exige HTTPS. '
                 'Seleccione la cámara y use Confiar HTTPS seleccionada.'
