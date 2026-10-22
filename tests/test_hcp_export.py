@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
                                 ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
-                                dismiss_hikcentral_overlays)
+                                date_range_contains_day, dismiss_hikcentral_overlays)
 from relleno.anpr_schedule import Scheduler
 
 
@@ -118,6 +118,20 @@ class ExportTests(unittest.TestCase):
 
 
 class TypeIntoTests(unittest.TestCase):
+    def test_applied_date_range_is_detected_after_calendar_closes(self):
+        page = Mock()
+        inputs = Mock()
+        page.locator.return_value = inputs
+        inputs.count.return_value = 2
+        first = Mock()
+        first.is_visible.return_value = True
+        first.input_value.return_value = '2026/10/21 00:00:00 - 2026/10/21 23:59:59'
+        second = Mock()
+        second.is_visible.return_value = False
+        inputs.nth.side_effect = [first, second]
+
+        self.assertTrue(date_range_contains_day(page, date(2026, 10, 21)))
+
     def test_first_use_overlays_never_block_export(self):
         page = Mock()
         candidates = Mock()

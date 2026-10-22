@@ -98,6 +98,23 @@ def ui_text(page, key):
     return visible_text(page, HIKCENTRAL_UI[key])
 
 
+def date_range_contains_day(page, day):
+    """Detecta el rango ya aplicado aunque HikCentral cierre el calendario solo."""
+    markers = (day.strftime('%Y/%m/%d'), day.strftime('%Y-%m-%d'))
+    matches = 0
+    inputs = page.locator('input')
+    for index in range(inputs.count()):
+        field = inputs.nth(index)
+        if not field.is_visible():
+            continue
+        try:
+            value = field.input_value()
+        except Exception:
+            continue
+        matches += max(value.count(marker) for marker in markers)
+    return matches >= 2
+
+
 def first_visible(root, selectors):
     for selector in selectors:
         matches = root.locator(selector)
@@ -412,11 +429,18 @@ def _download(config, day, credentials, folder, progress):
                     entry.press('Tab')
                 accept = page.get_by_role('button', name=re.compile(r'^(Aceptar|OK|Confirmar|Confirm)$')).filter(visible=True)
                 if accept.count():
-                    accept.first.click()
+                    try:
+                        # Algunas versiones aplican el segundo extremo y desmontan
+                        # el calendario durante este click. El rango visible es la
+                        # confirmación autoritativa en ese caso.
+                        accept.first.click(timeout=2500, force=True)
+                    except Exception:
+                        if not date_range_contains_day(page, day):
+                            raise
                 else:
                     # Clicking outside commits the native date widget.
                     ui_text(page, 'time').first.click()
-                if [entry.input_value() for entry in range_inputs.all()] != [start, end]:
+                if not date_range_contains_day(page, day):
                     raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
                 progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
                 parsed_url = urlsplit(url)
