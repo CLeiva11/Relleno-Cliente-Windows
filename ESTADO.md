@@ -1,6 +1,6 @@
-# Entrega 0.4.3
+# Entrega 0.4.14
 
-Ejecute `dist/RellenoCliente-Setup-0.4.3.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.14.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
