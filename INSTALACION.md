@@ -1,6 +1,6 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.4.18.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.19.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
@@ -23,6 +23,9 @@
 8. En Conteos, active la extracción diaria de Personas si el centro utiliza cámaras
    DS-2CD6825G0/C-IVS o iDS-2CD7146G0-IZS y confirme que Probar cámaras detecta el
    conteo habilitado.
+
+Para recuperar varios días, indique Desde y Hasta en ANPR o Conteos. El rango
+manual admite hasta 31 días terminados y envía cada fecha por separado.
 
 El instalador es reutilizable; la configuración es propia de cada equipo. No
 copie `config.json`, la cola ni las credenciales del centro piloto a otro centro.

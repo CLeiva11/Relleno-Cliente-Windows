@@ -1,12 +1,12 @@
 [Setup]
 AppId={{E91A903A-1ACD-45D4-B1EA-EC4DDC3EAAD2}
 AppName=Relleno Cliente
-AppVersion=0.4.18
+AppVersion=0.4.19
 DefaultDirName={localappdata}\Programs\RellenoCliente
 DefaultGroupName=Relleno Cliente
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=RellenoCliente-Setup-0.4.18
+OutputBaseFilename=RellenoCliente-Setup-0.4.19
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

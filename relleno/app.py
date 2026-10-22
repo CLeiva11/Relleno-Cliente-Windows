@@ -6,7 +6,7 @@ import threading
 import time
 import tkinter as tk
 import webbrowser
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from tkinter import ttk, messagebox, filedialog
 from zoneinfo import ZoneInfo
@@ -16,6 +16,7 @@ from relleno.portal import link, persist_binding, PortalError
 from relleno.cameras import probe, parse_inventory, extract_day, CameraError
 from relleno.anpr import Outbox, AnprError
 from relleno.hcp_export import ExportError
+from relleno.date_ranges import completed_days
 
 
 class App:
@@ -182,21 +183,38 @@ class App:
             self.background('Conservando originales y enviando ANPR…', work, self.anpr_result)
         export_row = ttk.Frame(frame)
         export_row.pack(fill='x', pady=10)
-        ttk.Label(export_row, text='Fecha ANPR (AAAA-MM-DD):').pack(side='left')
-        day = tk.StringVar(value=str((datetime.now(ZoneInfo(self.config['timezone']))-timedelta(days=1)).date()))
-        ttk.Entry(export_row, textvariable=day, width=14).pack(side='left', padx=8)
+        yesterday = str((datetime.now(ZoneInfo(self.config['timezone']))-timedelta(days=1)).date())
+        ttk.Label(export_row, text='Desde').pack(side='left')
+        first_day = tk.StringVar(value=yesterday)
+        ttk.Entry(export_row, textvariable=first_day, width=12).pack(side='left', padx=(6, 10))
+        ttk.Label(export_row, text='Hasta').pack(side='left')
+        last_day = tk.StringVar(value=yesterday)
+        ttk.Entry(export_row, textvariable=last_day, width=12).pack(side='left', padx=(6, 10))
         def export():
             try:
-                selected = date.fromisoformat(day.get().strip())
-            except ValueError:
-                messagebox.showerror('Fecha inválida', 'Use una fecha de día terminado con formato AAAA-MM-DD.')
+                selected_days = completed_days(
+                    first_day.get(), last_day.get(), self.config['timezone']
+                )
+            except ValueError as exc:
+                messagebox.showerror('Rango inválido', str(exc))
                 return
             config = load()
             def work():
                 from relleno.anpr_schedule import export_and_enqueue
-                export_and_enqueue(config, selected, self.outbox)
+                errors = []
+                for selected in selected_days:
+                    try:
+                        export_and_enqueue(config, selected, self.outbox)
+                        self.outbox.drain(config)
+                    except (ExportError, AnprError, ValueError) as exc:
+                        errors.append(f'{selected}: {exc}')
+                if errors:
+                    raise ExportError('No se completaron todos los días. ' + ' | '.join(errors[:6]))
                 return self.outbox.drain(config)
-            self.background('HikCentral está preparando el Excel original y su envío…', work, self.anpr_result)
+            self.background(
+                f'HikCentral está preparando y enviando {len(selected_days)} día(s)…',
+                work, self.anpr_result,
+            )
         ttk.Button(export_row, text='Generar y enviar', command=export).pack(side='left')
         self.action_menu(export_row, [
             ('Enviar Excel manual…', send_files),
@@ -433,20 +451,28 @@ class App:
         self.background('Probando cámaras e identificando modelo y canal de conteo…', work, done)
 
     def counts(self, frame):
-        ttk.Label(frame, text='Consulta por cámara e intervalo. Se conservan las respuestas originales y los ceros reales.').pack(anchor='w')
+        ttk.Label(frame, text='Consulta por cámara y día. Se conservan las respuestas originales y los ceros reales.').pack(anchor='w')
         yesterday = (datetime.now(ZoneInfo(self.config.get('timezone', 'America/Santiago'))) - timedelta(days=1)).date()
-        day = self.field(frame, 'Fecha (AAAA-MM-DD, día terminado)', str(yesterday))
+        range_row = ttk.Frame(frame)
+        range_row.pack(fill='x', pady=10)
+        ttk.Label(range_row, text='Desde').pack(side='left')
+        first_day = tk.StringVar(value=str(yesterday))
+        ttk.Entry(range_row, textvariable=first_day, width=12).pack(side='left', padx=(6, 10))
+        ttk.Label(range_row, text='Hasta').pack(side='left')
+        last_day = tk.StringVar(value=str(yesterday))
+        ttk.Entry(range_row, textvariable=last_day, width=12).pack(side='left', padx=(6, 10))
         self.count_table = ttk.Treeview(frame, columns=('camera', 'start', 'end', 'entries', 'exits'), show='headings', height=16)
         for key, title, width in zip(self.count_table['columns'], ('Cámara', 'Desde', 'Hasta', 'Entradas', 'Salidas'), (220, 240, 240, 90, 90)):
             self.count_table.heading(key, text=title)
             self.count_table.column(key, width=width)
         self.count_table.pack(fill='both', expand=True, pady=12)
         def run():
-            value = day.get().strip()
             try:
-                datetime.strptime(value, '%Y-%m-%d')
-            except ValueError:
-                messagebox.showerror('Fecha inválida', 'Use AAAA-MM-DD.')
+                selected_days = completed_days(
+                    first_day.get(), last_day.get(), self.config['timezone']
+                )
+            except ValueError as exc:
+                messagebox.showerror('Rango inválido', str(exc))
                 return
             cameras = list(self.config['cameras'])
             zone = self.config['timezone']
@@ -459,10 +485,14 @@ class App:
                     try:
                         if not current.get('model') or current.get('source_kind') in {'', 'pending', None}:
                             current = probe(current)
-                        batch = extract_day(current, value, zone, centre_id)
-                        send_batch(self.config['binding'], batch)
-                        batches.append(batch)
-                    except CameraError as exc:
+                        for selected in selected_days:
+                            try:
+                                batch = extract_day(current, selected, zone, centre_id)
+                                send_batch(self.config['binding'], batch)
+                                batches.append(batch)
+                            except (CameraError, ValueError) as exc:
+                                errors.append(f"{selected} · {camera['name']}: {exc}")
+                    except (CameraError, ValueError) as exc:
                         current = dict(current, connection_status=str(exc))
                         errors.append(camera['name'] + ': ' + str(exc))
                     tested.append(current)
@@ -476,11 +506,13 @@ class App:
                     for row in batch['intervals']:
                         self.count_table.insert('', 'end', values=[batch['camera']['name'], row['start'], row['end'], row['entries'], row['exits']])
                 if errors:
-                    messagebox.showwarning('Consultas pendientes', '\n'.join(errors))
+                    messagebox.showwarning('Consultas pendientes', '\n'.join(errors[:12]))
                 else:
-                    messagebox.showinfo('Personas recibidas', f'{len(batches)} cámaras consultadas y confirmadas por Comprobaciones.')
-            self.background('Consultando conteos; se conserva cada cámara por separado…', work, done)
-        ttk.Button(frame, text='Consultar y enviar todas las cámaras', command=run).pack(anchor='w')
+                    messagebox.showinfo('Personas recibidas', f'{len(batches)} envíos de cámara/día confirmados por Comprobaciones.')
+            self.background(
+                f'Consultando y enviando {len(selected_days)} día(s) por cámara…', work, done
+            )
+        ttk.Button(range_row, text='Consultar y enviar', command=run).pack(side='left')
         automatic = ttk.LabelFrame(frame, text='Extracción automática de Personas', padding=10)
         automatic.pack(fill='x', pady=10)
         people_settings = self.config.get('people', {})
