@@ -287,6 +287,7 @@ class App:
         ttk.Button(buttons, text='Importar lista', command=self.import_dialog).pack(side='left')
         ttk.Button(buttons, text='Agregar / editar', command=self.edit_camera).pack(side='left', padx=8)
         ttk.Button(buttons, text='Probar todas', command=self.test_cameras).pack(side='left')
+        ttk.Button(buttons, text='Confiar HTTPS seleccionada', command=self.trust_camera_https).pack(side='left', padx=(6, 0))
         ttk.Button(buttons, text='Exportar diagnóstico', command=self.export_diagnostics).pack(side='left', padx=(6, 0))
         ttk.Button(buttons, text='Quitar seleccionada', command=self.remove_camera).pack(side='left', padx=8)
         credentials = ttk.LabelFrame(frame, text='Credenciales compartidas de cámaras', padding=10)
@@ -377,6 +378,35 @@ class App:
             self.config['cameras'].pop(int(self.table.selection()[0]))
             save(self.config)
             self.refresh()
+
+    def trust_camera_https(self):
+        selection = self.table.selection()
+        if not selection:
+            messagebox.showinfo('Seleccione una cámara', 'Seleccione primero la cámara que respondió HTTP 302.')
+            return
+        index = int(selection[0])
+        camera = self.config['cameras'][index]
+        from relleno.cameras import read_camera_certificate_fingerprint
+        def done(fingerprint):
+            formatted = ':'.join(fingerprint[position:position + 2] for position in range(0, len(fingerprint), 2)).upper()
+            accepted = messagebox.askyesno(
+                'Confiar en HTTPS de la cámara',
+                f"{camera['name']} ({camera['ip']}) presentó esta huella SHA-256:\n\n{formatted}\n\n"
+                'Confirme solo si corresponde a la cámara seleccionada.'
+            )
+            if not accepted:
+                self.status_text.set('Certificado de cámara no confirmado')
+                return
+            self.config['cameras'][index]['https_fingerprint'] = fingerprint
+            self.config['cameras'][index]['connection_status'] = 'HTTPS confirmado; pendiente de probar'
+            save(self.config)
+            self.refresh()
+            self.status_text.set('Certificado HTTPS guardado; use Probar todas')
+        self.background(
+            f"Leyendo certificado HTTPS de {camera['name']}…",
+            lambda: read_camera_certificate_fingerprint(camera['ip']),
+            done,
+        )
 
     def export_diagnostics(self):
         from relleno.diagnostics import export

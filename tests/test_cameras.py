@@ -75,6 +75,22 @@ class CameraTests(unittest.TestCase):
             request(camera, '/ISAPI/System/deviceInfo')
         self.assertEqual(send.call_count, 1)
 
+    @patch('relleno.cameras.read_secret', return_value={'username': 'user', 'password': 'secret'})
+    @patch('relleno.cameras.requests.Session')
+    def test_confirmed_fingerprint_uses_pinned_https(self, session, secret):
+        session.return_value.request.return_value = Mock(
+            status_code=200, content=b'<DeviceInfo/>', headers={},
+            url='https://192.168.1.20/ISAPI/System/deviceInfo',
+        )
+        camera = {'external_id': '20', 'ip': '192.168.1.20', 'https_fingerprint': 'ab' * 32}
+        self.assertEqual(request(camera, '/ISAPI/System/deviceInfo'), b'<DeviceInfo/>')
+        self.assertEqual(
+            session.return_value.request.call_args.args[1],
+            'https://192.168.1.20/ISAPI/System/deviceInfo',
+        )
+        self.assertFalse(session.return_value.request.call_args.kwargs['verify'])
+        session.return_value.mount.assert_called_once()
+
     @patch('relleno.cameras.request')
     def test_source_is_kept_and_same_window_is_not_extracted_twice(self, request):
         from relleno.cameras import extract_day

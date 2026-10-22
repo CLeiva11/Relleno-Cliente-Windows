@@ -4,18 +4,31 @@ import hashlib
 import ipaddress
 import json
 import re
+import socket
+import ssl
 import uuid
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 import requests
+from requests.adapters import HTTPAdapter
 from requests.auth import HTTPDigestAuth
 from relleno.storage import ROOT, read_secret, store_secret
 
 
 class CameraError(ValueError):
     pass
+
+
+class CameraPinnedAdapter(HTTPAdapter):
+    def __init__(self, fingerprint):
+        self.fingerprint = fingerprint
+        super().__init__()
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs['assert_fingerprint'] = self.fingerprint
+        return super().init_poolmanager(*args, **kwargs)
 
 
 def host_url(host):
@@ -27,6 +40,24 @@ def host_url(host):
         if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9.-]*', host):
             raise CameraError('Ingrese una IP o nombre de cámara sin usuario, ruta ni contraseña.')
         return 'http://' + host
+
+
+def read_camera_certificate_fingerprint(host):
+    parsed = urlsplit(host_url(host))
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    try:
+        with socket.create_connection((parsed.hostname, 443), timeout=5) as raw:
+            with context.wrap_socket(raw, server_hostname=parsed.hostname) as secured:
+                certificate = secured.getpeercert(binary_form=True)
+    except (TimeoutError, socket.timeout):
+        raise CameraError('La cámara no respondió por HTTPS en el puerto 443.') from None
+    except OSError:
+        raise CameraError('No se pudo leer el certificado HTTPS de la cámara.') from None
+    if not certificate:
+        raise CameraError('La cámara no entregó un certificado HTTPS.')
+    return hashlib.sha256(certificate).hexdigest()
 
 
 def xml_tree(content):
@@ -43,13 +74,27 @@ def request(camera, path, body=None):
     secret = read_secret('camera/' + camera['external_id']) or read_secret('camera-default')
     if not secret:
         raise CameraError('Guarde primero el usuario y la contraseña de las cámaras.')
+    fingerprint = str(camera.get('https_fingerprint') or '').strip()
+    base = host_url(camera['ip'])
+    verify = True
+    session = None
+    if fingerprint:
+        base = 'https://' + urlsplit(base).netloc
+        session = requests.Session()
+        session.trust_env = False
+        session.mount(base, CameraPinnedAdapter(fingerprint))
+        verify = False
+    sender = session.request if session is not None else requests.request
     try:
-        response = requests.request('POST' if body else 'GET', host_url(camera['ip']) + path,
-                                    auth=HTTPDigestAuth(secret['username'], secret['password']),
-                                    data=body, headers={'Content-Type': 'application/xml'},
-                                    timeout=(5, 20), allow_redirects=False)
+        response = sender('POST' if body else 'GET', base + path,
+                          auth=HTTPDigestAuth(secret['username'], secret['password']),
+                          data=body, headers={'Content-Type': 'application/xml'},
+                          timeout=(5, 20), allow_redirects=False, verify=verify)
     except requests.RequestException:
         raise CameraError('No se pudo conectar con la cámara.') from None
+    finally:
+        if session is not None:
+            session.close()
     if response.status_code == 401:
         raise CameraError('La cámara rechazó el usuario o la contraseña. No se reintentó.')
     if response.status_code in {301, 302, 303, 307, 308}:
@@ -65,7 +110,7 @@ def request(camera, path, body=None):
         if source.scheme == 'http' and target.scheme == 'https':
             raise CameraError(
                 f'La cámara respondió HTTP {response.status_code} porque exige HTTPS. '
-                'Revise HTTPS/certificado en la cámara antes de consultar ISAPI.'
+                'Seleccione la cámara y use Confiar HTTPS seleccionada.'
             )
         if not target.path.startswith('/ISAPI/'):
             raise CameraError(
