@@ -2,7 +2,7 @@ from urllib.parse import urlsplit, urljoin
 import requests
 
 BASE = 'https://siem.domoticatechnology.cl/relleno'
-CLIENT_VERSION = '0.4.22'
+CLIENT_VERSION = '0.4.26'
 
 
 class PortalError(ValueError):

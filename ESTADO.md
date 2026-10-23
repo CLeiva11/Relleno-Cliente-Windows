@@ -1,4 +1,12 @@
-# Entrega 0.4.22
+# Entrega 0.4.26
+
+La versión 0.4.26 abre ANPR desde el menú de aplicaciones de HikCentral
+cuando el módulo no aparece en la barra superior. Conserva la navegación de
+versiones anteriores y la exportación Excel nativa si el adaptador de red falla.
+Se validó una extracción y recepción real del día completo, verificando el
+total informado por HikCentral, las fechas y las cámaras del archivo original.
+Pruebas automatizadas: 73 correctas. El ejecutable compilado pasa `--self-test`
+y `--browser-self-test` con Edge del sistema.
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
@@ -11,7 +19,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.22.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.26.exe` en Windows x64 con su usuario habitual.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El

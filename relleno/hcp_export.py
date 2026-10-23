@@ -98,6 +98,45 @@ def ui_text(page, key):
     return visible_text(page, HIKCENTRAL_UI[key])
 
 
+def open_anpr_search(page, url):
+    """Open ANPR from the application registry while retaining legacy menus."""
+    dismiss_hikcentral_overlays(page)
+    # Modular clients load their application registry after the login disappears.
+    # Entering a hash route before selecting its application returns to /portal.
+    applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
+    try:
+        applications.first.wait_for(timeout=10000)
+    except Exception:
+        pass
+    anpr = visible_text(page, ('ANPR',))
+    if not anpr.count() and applications.count():
+        dismiss_hikcentral_overlays(page)
+        applications.first.click()
+        anpr.first.wait_for(timeout=15000)
+    if anpr.count():
+        anpr.first.click()
+    else:
+        module = ui_text(page, 'module')
+        if module.count():
+            module.first.click()
+    search = ui_text(page, 'search_view')
+    try:
+        search.first.wait_for(timeout=10000)
+        search.first.click()
+    except Exception:
+        pass  # Legacy ANPR opens the camera search directly.
+    try:
+        ui_text(page, 'root').first.wait_for(timeout=10000)
+        return
+    except Exception:
+        # V1.17 separates the registered-vehicle catalogue from passing records.
+        # This route comes from Anpr's navData, not the Vehicle catalogue.
+        page.goto(url.rstrip('/') + '/#/anpr/vehicleSearch',
+                  wait_until='domcontentloaded', timeout=60000)
+        dismiss_hikcentral_overlays(page)
+        ui_text(page, 'root').first.wait_for(timeout=30000)
+
+
 def date_range_contains_day(page, day):
     """Detecta el rango ya aplicado aunque HikCentral cierre el calendario solo."""
     markers = (day.strftime('%Y/%m/%d'), day.strftime('%Y-%m-%d'))
@@ -413,14 +452,7 @@ def _download(config, day, credentials, folder, progress):
                 except Exception:
                     raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
                 progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
-                ui_text(page, 'module').first.click()
-                # En versiones nuevas el módulo abre un menú lateral; se entra a la búsqueda de pasos.
-                search_menu = ui_text(page, 'search_view')
-                try:
-                    search_menu.first.wait_for(timeout=10000)
-                    search_menu.first.click()
-                except Exception:
-                    pass  # Versión del piloto: ANPR abre directamente la búsqueda.
+                open_anpr_search(page, url)
                 progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
                 root = ui_text(page, 'root').first
                 root.wait_for(timeout=30000)
@@ -493,7 +525,7 @@ def _download(config, day, credentials, folder, progress):
                             f'adapter {api_evidence["adapter"]} rows={api_evidence["count"]}'
                         )
                         return source, api_evidence
-                    except AdapterError:
+                    except AdapterError as exc:
                         progress.setdefault('events', []).append(
                             f'adapter fallback {type(exc).__name__}'
                         )
