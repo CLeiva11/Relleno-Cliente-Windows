@@ -11,3 +11,4 @@ config.json
 .tools/
 .inno-setup.exe
 .automation-deps/
+dist/

@@ -1,4 +1,11 @@
-# Entrega 0.4.22
+# Entrega 0.4.23
+
+Compatibilidad ANPR seleccionada por el tráfico de la interfaz instalada: conserva
+Bumblebee/VehicleBiz/V0 y el respaldo Excel para otras versiones. Espera hasta diez
+segundos las respuestas de conteo y listado, reconoce el módulo Vehículo en español
+y corrige el error que impedía continuar al respaldo cuando el adaptador rechazaba
+una respuesta. Validación local del 22 de octubre: 7.573 registros en 76 páginas,
+con total exacto; sin envío al portal. Las 70 pruebas automatizadas pasan.
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
@@ -11,7 +18,11 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.22.exe` en Windows x64 con su usuario habitual.
+Entrega portable: extraiga `dist/RellenoCliente-Portable-0.4.23.zip` y ejecute
+`RellenoCliente/RellenoCliente.exe` en Windows x64 con su usuario habitual.
+El instalador 0.4.23 queda pendiente: la política de ejecución bloqueó la
+preparación de Inno Setup. La versión portable usa el mismo perfil local y
+conserva el vínculo existente.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El

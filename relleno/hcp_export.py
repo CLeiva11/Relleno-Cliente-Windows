@@ -24,7 +24,7 @@ class ExportError(ValueError):
 # the same workflow. Unknown layouts stop with diagnostics instead of exporting
 # a different view or date range.
 HIKCENTRAL_UI = {
-    'module': ('ANPR', 'Vehicle', 'Vehículos', 'Vehicles'),
+    'module': ('ANPR', 'Vehículo', 'Vehicle', 'Vehículos', 'Vehicles'),
     'search_view': ('Búsqueda de paso de vehículos', 'Búsqueda de vehículos',
                     'Vehicle Passing Search', 'Vehicle Search'),
     'root': ('HikCentral Professional', 'Todos los recursos', 'All Resources', 'All Cameras'),
@@ -483,7 +483,12 @@ def _download(config, day, credentials, folder, progress):
                 # Newer local HikCentral clients expose the complete authenticated
                 # row feed behind the same search. Prefer an exact, verified pull;
                 # retain the visual native-export workflow as compatibility fallback.
-                page.wait_for_timeout(1500)
+                # Responses may arrive in either order on slower HikCentral releases.
+                # Unknown families retain the native Excel workflow.
+                for _attempt in range(40):
+                    if captured.get('count') and captured.get('list'):
+                        break
+                    page.wait_for_timeout(250)
                 adapter = selected_adapter['value']
                 if adapter and captured.get('count') and captured.get('list'):
                     progress['message'] = 'HikCentral no completó la descarga paginada de registros ANPR.'
@@ -493,7 +498,7 @@ def _download(config, day, credentials, folder, progress):
                             f'adapter {api_evidence["adapter"]} rows={api_evidence["count"]}'
                         )
                         return source, api_evidence
-                    except AdapterError:
+                    except AdapterError as exc:
                         progress.setdefault('events', []).append(
                             f'adapter fallback {type(exc).__name__}'
                         )

@@ -63,7 +63,11 @@ class BumblebeeAdapterTests(unittest.TestCase):
                 context, {'count':count, 'list':first}, date(2026, 10, 21), Path(directory)
             )
             self.assertEqual(evidence['count'], 3)
-            rows = list(load_workbook(source, read_only=True).active.values)
+            workbook = load_workbook(source, read_only=True)
+            try:
+                rows = list(workbook.active.values)
+            finally:
+                workbook.close()
             self.assertEqual(len(rows), 4)
             self.assertEqual(rows[1][1:3], ('AA11', 'CAM 1'))
 
