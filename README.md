@@ -17,7 +17,7 @@ El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 ## Versión 0.4.23
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El instalador previsto es `RellenoCliente-Setup-0.4.23.exe`. Consulte
+El instalador es `RellenoCliente-Setup-0.4.23.exe`. Consulte
 [ESTADO.md](ESTADO.md) para el estado de los artefactos de esta entrega. Incluye extracción ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de

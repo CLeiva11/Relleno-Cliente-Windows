@@ -18,11 +18,8 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Entrega portable: extraiga `dist/RellenoCliente-Portable-0.4.23.zip` y ejecute
-`RellenoCliente/RellenoCliente.exe` en Windows x64 con su usuario habitual.
-El instalador 0.4.23 queda pendiente: la política de ejecución bloqueó la
-preparación de Inno Setup. La versión portable usa el mismo perfil local y
-conserva el vínculo existente.
+Ejecute `dist/RellenoCliente-Setup-0.4.23.exe` en Windows x64 con su usuario habitual.
+El instalador conserva el perfil local y el vínculo existente.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El
