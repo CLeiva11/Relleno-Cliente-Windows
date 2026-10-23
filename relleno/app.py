@@ -483,15 +483,14 @@ class App:
                 for camera in cameras:
                     current = camera
                     try:
-                        if not current.get('model') or current.get('source_kind') in {'', 'pending', None}:
-                            current = probe(current)
+                        from relleno.agent import collect_people
                         for selected in selected_days:
                             try:
-                                batch = extract_day(current, selected, zone, centre_id)
+                                current, batch = collect_people(current, selected, zone, centre_id)
                                 send_batch(self.config['binding'], batch)
                                 batches.append(batch)
                             except (CameraError, ValueError) as exc:
-                                errors.append(f"{selected} · {camera['name']}: {exc}")
+                                errors.append(f"{selected} - {camera['name']}: {exc}")
                     except (CameraError, ValueError) as exc:
                         current = dict(current, connection_status=str(exc))
                         errors.append(camera['name'] + ': ' + str(exc))
@@ -504,10 +503,13 @@ class App:
                 self.count_table.delete(*self.count_table.get_children())
                 for batch in batches:
                     for row in batch['intervals']:
-                        self.count_table.insert('', 'end', values=[batch['camera']['name'], row['start'], row['end'], row['entries'], row['exits']])
+                        self.count_table.insert('', 'end', values=[batch['camera']['name'] + (' (0 estimado)' if batch.get('quality', {}).get('estimated') else ''), row['start'], row['end'], row['entries'], row['exits']])
                 if errors:
                     messagebox.showwarning('Consultas pendientes', '\n'.join(errors[:12]))
                 else:
+                    estimated = sum(bool(batch.get('quality', {}).get('estimated')) for batch in batches)
+                    if estimated:
+                        messagebox.showwarning('Ceros estimados enviados', f'{estimated} lote(s) sin conexion se enviaron como 0 estimado para revision manual.')
                     messagebox.showinfo('Personas recibidas', f'{len(batches)} envíos de cámara/día confirmados por Comprobaciones.')
             self.background(
                 f'Consultando y enviando {len(selected_days)} día(s) por cámara…', work, done

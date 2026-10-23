@@ -32,7 +32,12 @@ Entradas y Salidas por cámara e intervalo.
 - Nunca enviar credenciales de cámaras o HikCentral al portal.
 - Mantener datos separados por cámara, dirección e intervalo. La región comercial
   pertenece a la tabla `camaras` del portal y no se define en Windows.
-- `0` es válido. Una consulta fallida o sin dato no debe convertirse en cero.
+- `0` es válido. Por autorización expresa del operador, la falta de conexión
+  HTTP/HTTPS en cámaras de Personas produce ceros estimados por intervalo para
+  comparación y revisión manual. Identificarlos con `quality.estimated: true`,
+  `reason: camera_unreachable` y `requires_manual_review: true`, conservando
+  evidencia local y un ID distinto del conteo real. No aplicar esta excepción
+  a autenticación, certificados cambiados, errores HTTP o datos incompletos.
 - Conservar archivos y respuestas fuente hasta que el servidor confirme recepción.
 - La plataforma decide el mapeo, comparación, reglas especiales y corrección.
 
@@ -197,7 +202,7 @@ Personas produce lotes JSON cámara por cámara y Vehículos conserva archivos A
 - El token y las credenciales nunca quedan en archivos de texto o logs.
 - Cada cámara se identifica de manera estable por ID/IP; el portal obtiene su
   región desde la base y conserva la dirección del conteo.
-- Personas diferencia cero real de dato ausente.
+- Personas diferencia cero real, cero estimado por falta de conexión y dato ausente.
 - ANPR conserva el archivo original y admite español e inglés.
 - La pérdida de red o un reinicio no pierde ni duplica lotes.
 - El portal recibe datos del centro vinculado y no permite elegir otro centro.

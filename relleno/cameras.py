@@ -21,6 +21,10 @@ class CameraError(ValueError):
     pass
 
 
+class CameraConnectionError(CameraError):
+    """No camera response; eligible for the operator-authorized zero estimate."""
+
+
 class CameraPinnedAdapter(HTTPAdapter):
     def __init__(self, fingerprint):
         self.fingerprint = fingerprint
@@ -52,9 +56,11 @@ def read_camera_certificate_fingerprint(host):
             with context.wrap_socket(raw, server_hostname=parsed.hostname) as secured:
                 certificate = secured.getpeercert(binary_form=True)
     except (TimeoutError, socket.timeout):
-        raise CameraError('La cámara no respondió por HTTPS en el puerto 443.') from None
+        raise CameraConnectionError('La cámara no respondió por HTTPS en el puerto 443.') from None
+    except ssl.SSLError:
+        raise CameraError('No se pudo verificar TLS de la cámara.') from None
     except OSError:
-        raise CameraError('No se pudo leer el certificado HTTPS de la cámara.') from None
+        raise CameraConnectionError('No se pudo conectar por HTTPS con la cámara.') from None
     if not certificate:
         raise CameraError('La cámara no entregó un certificado HTTPS.')
     return hashlib.sha256(certificate).hexdigest()
@@ -92,7 +98,7 @@ def xml_tree(content):
     return tree
 
 
-def request(camera, path, body=None):
+def request(camera, path, body=None, _https_attempted=False):
     secret = read_secret('camera/' + camera['external_id']) or read_secret('camera-default')
     if not secret:
         raise CameraError('Guarde primero el usuario y la contraseña de las cámaras.')
@@ -116,12 +122,15 @@ def request(camera, path, body=None):
         if fingerprint:
             raise CameraError('El certificado HTTPS de la cámara cambió; se bloqueó la conexión.') from None
         raise CameraError('No se pudo verificar el certificado HTTPS de la cámara.') from None
-    except requests.exceptions.ConnectionError:
-        # Some cameras expose only port 443 and therefore cannot issue an HTTP
-        # redirect. Trust on first use is restricted to private/local networks.
-        if not fingerprint and trust_local_camera_https(camera):
-            return request(camera, path, body)
-        raise CameraError('No se pudo conectar con la cámara.') from None
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        if fingerprint:
+            # Try HTTP once when the previously pinned HTTPS service is offline.
+            local = dict(camera)
+            local.pop('https_fingerprint', None)
+            return request(local, path, body, _https_attempted=True)
+        if not _https_attempted and trust_local_camera_https(camera):
+            return request(camera, path, body, _https_attempted=True)
+        raise CameraConnectionError('No se pudo conectar con la camara por HTTP ni HTTPS.') from None
     except requests.RequestException:
         raise CameraError('No se pudo conectar con la cámara.') from None
     finally:
@@ -140,6 +149,8 @@ def request(camera, path, body=None):
                 f'La cámara respondió HTTP {response.status_code} hacia otro servidor; no se reenviaron credenciales.'
             )
         if source.scheme == 'http' and target.scheme == 'https':
+            if _https_attempted:
+                raise CameraConnectionError('HTTP exige HTTPS, pero HTTPS no responde.')
             if trust_local_camera_https(camera):
                 return request(camera, path, body)
             raise CameraError(
@@ -446,3 +457,53 @@ def parse_inventory(text):
     if not cameras:
         raise CameraError('Pegue al menos una cámara.')
     return cameras
+
+
+def estimated_zero_day(camera, day, timezone_name, centre_id):
+    """Operator-authorized estimate for network outages, never a measured zero."""
+    zone = ZoneInfo(timezone_name)
+    day = date.fromisoformat(day) if isinstance(day, str) else day
+    if day >= datetime.now(zone).date():
+        raise CameraError('Seleccione un dia terminado.')
+    source_kind = camera.get('source_kind')
+    if source_kind not in ('people_counter', 'rf_counter', 'pending', '', None):
+        raise CameraError('La estimacion solo corresponde a camaras de Personas.')
+    source_kind = source_kind if source_kind in ('people_counter', 'rf_counter') else 'people_counter'
+    identity = {k: camera[k] for k in ('external_id', 'name', 'ip', 'direction')}
+    if identity['direction'] in ('pending', '', None):
+        identity['direction'] = 'bidirectional'
+    key = json.dumps([centre_id, identity['external_id'], identity['ip'], source_kind,
+                      identity['direction'], day.isoformat(), timezone_name, 'estimated-zero-v1'])
+    batch_id = str(uuid.uuid5(uuid.NAMESPACE_URL, key))
+    folder = ROOT / 'batches' / batch_id
+    folder.mkdir(parents=True, exist_ok=True)
+    from relleno.locks import exclusive_byte
+    with (folder / 'extract.lock').open('a+b') as handle:
+        if handle.tell() == 0:
+            handle.write(b'0'); handle.flush()
+        try:
+            with exclusive_byte(handle):
+                target = folder / 'people.json'
+                if target.exists():
+                    return json.loads(target.read_text(encoding='utf-8'))
+                start = datetime.combine(day, datetime.min.time(), zone).astimezone(timezone.utc)
+                stop = datetime.combine(day + timedelta(days=1), datetime.min.time(), zone).astimezone(timezone.utc)
+                intervals = []
+                while start < stop:
+                    end = min(start + timedelta(hours=1), stop)
+                    intervals.append(dict(start=start.astimezone(zone).isoformat(),
+                                          end=end.astimezone(zone).isoformat(), entries=0, exits=0))
+                    start = end
+                data = dict(schema_version=1, data_type='personas', source_kind=source_kind,
+                            batch_id=batch_id, timezone=timezone_name, camera=identity, intervals=intervals,
+                            quality={'estimated': True, 'reason': 'camera_unreachable',
+                                     'method': 'zero_fallback', 'requires_manual_review': True})
+                (folder / 'connection-error.json').write_text(json.dumps({
+                    'reason': 'camera_unreachable', 'recorded_at': datetime.now(timezone.utc).isoformat(),
+                    'estimated': True, 'requires_manual_review': True}), encoding='utf-8')
+                temporary = folder / 'people.tmp'
+                temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+                temporary.replace(target)
+                return data
+        except BlockingIOError:
+            raise CameraError('Esta ventana ya se esta consultando.') from None

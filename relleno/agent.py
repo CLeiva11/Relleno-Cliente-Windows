@@ -1,5 +1,5 @@
 """Portal heartbeat and remote generation commands for the Windows worker."""
-from relleno.cameras import extract_day, probe
+from relleno.cameras import extract_day, probe, CameraConnectionError, estimated_zero_day
 from relleno.people import send_batch
 from relleno.portal import CLIENT_VERSION, agent_post
 from relleno.storage import read_secret, save
@@ -8,7 +8,8 @@ from relleno.storage import read_secret, save
 def capabilities(config):
     result = []
     if any(
-        camera.get('counting_enabled') and camera.get('source_kind') == 'people_counter'
+        (camera.get('counting_enabled') and camera.get('source_kind') in {'people_counter', 'rf_counter'})
+        or camera.get('source_kind') == 'pending'
         for camera in config.get('cameras', [])
     ):
         result.append('personas')
@@ -40,54 +41,48 @@ def complete_command(config, command, state, message, receipt_ids=None):
     })
 
 
+def collect_people(camera, day, timezone_name, centre_id):
+    current = camera
+    try:
+        if current.get('source_kind') in {'', 'pending', None} or not current.get('counting_enabled'):
+            current = probe(current)
+        batch = extract_day(current, day, timezone_name, centre_id)
+    except CameraConnectionError:
+        batch = estimated_zero_day(current, day, timezone_name, centre_id)
+    return current, batch
+
+
 def generate_people(config, day):
     fingerprints_before = {
         (camera.get('external_id'), camera.get('ip')): camera.get('https_fingerprint')
         for camera in config.get('cameras', [])
     }
-    refreshed = []
-    errors = []
-    probed = False
+    refreshed, receipts, errors = [], [], []
+    changed = False
     for camera in config.get('cameras', []):
         current = camera
-        if current.get('source_kind') in {'', 'pending', None} or not current.get('counting_enabled'):
-            probed = True
-            try:
-                current = probe(current)
-            except Exception as exc:
-                current = dict(current, connection_status=str(exc))
-                errors.append(f"{camera.get('name', 'Cámara')}: {exc}")
-        refreshed.append(current)
-    config['cameras'] = refreshed
-    cameras = [
-        camera for camera in refreshed
-        if camera.get('counting_enabled') and camera.get('source_kind') == 'people_counter'
-    ]
-    if not cameras:
-        if probed:
-            save(config)
-        detail = ' | '.join(errors[:5])
-        raise ValueError(detail or 'No hay cámaras de Personas configuradas y habilitadas.')
-    receipts = []
-    for camera in cameras:
+        if camera.get('source_kind') == 'anpr':
+            refreshed.append(current)
+            continue
         try:
-            batch = extract_day(
-                camera, day, config.get('timezone', 'America/Santiago'),
-                config['binding']['centre_id'],
-            )
+            changed = changed or camera.get('source_kind') in {'', 'pending', None} or not camera.get('counting_enabled')
+            current, batch = collect_people(camera, day, config.get('timezone', 'America/Santiago'),
+                                            config['binding']['centre_id'])
             receipts.append(send_batch(config['binding'], batch))
         except Exception as exc:
-            errors.append(f"{camera.get('name', 'Cámara')}: {exc}")
-    # HTTPS trust-on-first-use can be discovered during extraction even when a
-    # camera had already been probed. Persist the pin before the worker reloads.
+            errors.append(f"{camera.get('name', 'Camera')}: {exc}")
+        refreshed.append(current)
+    config['cameras'] = refreshed
     pin_changed = any(
         fingerprints_before.get((camera.get('external_id'), camera.get('ip'))) != camera.get('https_fingerprint')
         for camera in refreshed
     )
-    if probed or pin_changed:
+    if changed or pin_changed:
         save(config)
     if errors:
-        raise ValueError('No se completaron todas las cámaras. ' + ' | '.join(errors[:5]))
+        raise ValueError('No se completaron todas las camaras. ' + ' | '.join(errors[:5]))
+    if not receipts:
+        raise ValueError('No hay camaras de Personas configuradas.')
     return receipts
 
 

@@ -1,4 +1,23 @@
-# Entrega 0.4.24
+# Entrega 0.4.25
+
+Por autorización del operador, Personas envía ceros estimados cuando una cámara
+no responde por HTTP/HTTPS. Conserva el inventario, cámara, dirección y zona
+horaria; genera intervalos horarios también en días de 23 o 25 horas. Si HTTPS
+con huella guardada no responde, intenta HTTP una sola vez. Los cambios de
+certificado, autenticación rechazada, respuestas HTTP de error y conteos
+incompletos continúan fallando sin generar ceros.
+
+El JSON incluye `quality.estimated`, `reason: camera_unreachable` y
+`requires_manual_review`; la evidencia local conserva el motivo sin credenciales.
+El lote usa un ID determinista separado del conteo real y se muestra como
+`0 estimado` en Conteos. Al recuperar conectividad se consulta la fuente de nuevo;
+no se reutiliza un estimado como dato medido. La regla se aplica a consultas
+manuales, programadas y órdenes remotas. El portal debe conservar y mostrar los
+metadatos de calidad para distinguirlos en su interfaz; el cliente no puede
+asegurar ese comportamiento del servidor. La corrección sigue siendo manual.
+No se enviaron ceros a cámaras reales durante las pruebas de esta entrega.
+79 pruebas automatizadas aprobadas.
+
 
 ANPR conserva siempre el Excel original descargado desde HikCentral, tanto en
 la interfaz nueva como en la anterior. Se elimina la ruta que reconstruía un
@@ -24,7 +43,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.24.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.25.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
@@ -51,7 +70,7 @@ En Conteos seleccione un día terminado y consulte todas las cámaras. El adapta
 de DS-2CD6825 se basa en la consulta ISAPI usada por el portal web y se validó con
 las siete cámaras del equipo piloto (firmware V5.8.10). Lee Entradas y Salidas por
 hora, sin inferirlas del nombre de acceso/salida, sin sumar cámaras ni regiones y
-sin convertir datos ausentes en cero. Rechaza horas ambiguas por horario de verano.
+sin convertir datos incompletos en cero; la falta de conexión usa el estimado autorizado. Rechaza horas ambiguas por horario de verano.
 Solo admite una región por cámara en este adaptador. RF continúa siendo Personas,
 pero necesita validar su modelo antes de extraer.
 
@@ -101,7 +120,8 @@ requiere que el portal confirme esa garantía. No se afirma entrega sin ID.
 
 Los adaptadores de red están separados por familia para incorporar otras versiones
 sin mezclar sus contratos. Los cambios de interfaz o API pueden requerir uno nuevo.
-No se generan conteos cero ni archivos parciales ante un fallo de consulta. Un
+No se generan archivos ANPR parciales ni ceros por errores de formato. La falta
+de conectividad en Personas usa el cero estimado autorizado descrito arriba. Un
 fallo de autenticación no provoca intentos indefinidos.
 
 El servicio envía un pulso cada minuto y consulta órdenes del portal cada 15
@@ -114,7 +134,7 @@ Personas se envía cámara por cámara al endpoint autenticado y conserva Entrad
 Salidas e intervalos horarios. La detección se hace por capacidad ISAPI y contempla
 DS-2CD6825G0/C-IVS e iDS-2CD7146G0-IZS, incluso cuando el segundo expone una regla
 global sin `CountingRegionList`. La programación diaria se ejecuta desde la 01:00,
-conserva pendientes tras reinicios y no transforma fallos en conteos cero. La
+conserva pendientes tras reinicios y distingue los ceros estimados autorizados de los conteos reales. La
 casilla general programa ANPR y Personas cuando ambos canales están configurados.
 La región del centro no forma parte del lote: el portal la resuelve desde `camaras`
 después de identificar el dispositivo por ID/IP.
