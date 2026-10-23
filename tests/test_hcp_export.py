@@ -7,7 +7,8 @@ from unittest.mock import Mock, patch
 from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
                                 ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
-                                date_range_contains_day, dismiss_hikcentral_overlays)
+                                date_range_contains_day, dismiss_hikcentral_overlays,
+                                select_all_anpr_cameras)
 from relleno.anpr_schedule import Scheduler
 
 
@@ -118,6 +119,20 @@ class ExportTests(unittest.TestCase):
 
 
 class TypeIntoTests(unittest.TestCase):
+    @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
+    @patch('relleno.hcp_export.tree_root_checked', side_effect=[False, False, True])
+    def test_camera_tree_waits_for_loading_and_retries_selection(self, checked, dismiss):
+        page = Mock()
+        loading = Mock()
+        page.get_by_text.return_value.filter.return_value = loading
+        loading.count.side_effect = [1, 0]
+        row = Mock()
+
+        self.assertTrue(select_all_anpr_cameras(page, row, attempts=3))
+        row.locator.return_value.first.click.assert_called_once()
+        page.wait_for_timeout.assert_called_with(750)
+        self.assertGreaterEqual(dismiss.call_count, 2)
+
     def test_applied_date_range_is_detected_after_calendar_closes(self):
         page = Mock()
         inputs = Mock()

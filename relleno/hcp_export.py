@@ -205,6 +205,28 @@ def dismiss_hikcentral_overlays(page):
                 pass
 
 
+def select_all_anpr_cameras(page, row, attempts=16):
+    """Espera el árbol y cierra avisos tardíos antes de marcar su raíz."""
+    loading_pattern = re.compile(r'^(Cargando(?:\.\.\.)?|Loading(?:\.\.\.)?)$', re.I)
+    for _attempt in range(attempts):
+        dismiss_hikcentral_overlays(page)
+        if tree_root_checked(row):
+            return True
+        loading = page.get_by_text(loading_pattern).filter(visible=True)
+        if loading.count():
+            page.wait_for_timeout(750)
+            continue
+        try:
+            row.locator(
+                "[treenode_check], input[type=checkbox], [class*=checkbox]"
+            ).first.click(timeout=2500, force=True)
+        except Exception:
+            pass
+        page.wait_for_timeout(750)
+    dismiss_hikcentral_overlays(page)
+    return tree_root_checked(row)
+
+
 def type_into(field, value, progress):
     """HikCentral deja sus campos en solo lectura hasta recibir foco (evita autocompletar)."""
     field.click(timeout=5000)
@@ -405,11 +427,7 @@ def _download(config, day, credentials, folder, progress):
                 dismiss_hikcentral_overlays(page)
                 # Fila de la raíz: el ancestro más cercano que contiene su casilla (árbol zTree o el de la versión nueva).
                 row = root.locator("xpath=ancestor::*[.//*[@treenode_check or @type='checkbox' or contains(@class,'checkbox')]][1]")
-                if not tree_root_checked(row):
-                    row.locator("[treenode_check], [class*=checkbox], input[type=checkbox]").first.click(
-                        timeout=5000, force=True
-                    )
-                if not tree_root_checked(row):
+                if not select_all_anpr_cameras(page, row):
                     raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
                 progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'
                 placeholder = page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True)
