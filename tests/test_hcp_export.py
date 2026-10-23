@@ -13,6 +13,53 @@ from relleno.anpr_schedule import Scheduler
 
 
 class ExportTests(unittest.TestCase):
+    @patch('relleno.hcp_export.visible_text')
+    @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
+    @patch('relleno.hcp_export.ui_text')
+    def test_hidden_anpr_is_opened_from_application_registry(self, ui, dismiss, visible):
+        from relleno.hcp_export import open_anpr_search
+        page = Mock()
+        applications = page.locator.return_value.filter.return_value
+        applications.count.return_value = 1
+        anpr = visible.return_value
+        anpr.count.side_effect = [0, 1]
+        open_anpr_search(page, 'https://localhost')
+        page.locator.assert_called_once_with('#navigation_addMenuBtn')
+        applications.first.click.assert_called_once()
+        anpr.first.wait_for.assert_called_once_with(timeout=15000)
+        anpr.first.click.assert_called_once()
+        page.goto.assert_not_called()
+
+    @patch('relleno.hcp_export.visible_text')
+    @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
+    @patch('relleno.hcp_export.ui_text')
+    def test_registered_vehicle_catalogue_falls_back_to_anpr_search(self, ui, dismiss, visible):
+        from relleno.hcp_export import open_anpr_search
+        page = Mock()
+        page.locator.return_value.filter.return_value.count.return_value = 0
+        visible.return_value.count.return_value = 0
+        module, search, root = Mock(), Mock(), Mock()
+        module.count.return_value = 1
+        search.first.wait_for.side_effect = TimeoutError('catalogue has no passing search')
+        root.first.wait_for.side_effect = [TimeoutError('no camera tree'), None]
+        ui.side_effect = lambda page, key: {'module':module, 'search_view':search, 'root':root}[key]
+        open_anpr_search(page, 'https://localhost')
+        page.goto.assert_called_once_with('https://localhost/#/anpr/vehicleSearch',
+                                         wait_until='domcontentloaded', timeout=60000)
+        self.assertEqual(root.first.wait_for.call_count, 2)
+
+    @patch('relleno.hcp_export.visible_text')
+    @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
+    @patch('relleno.hcp_export.ui_text')
+    def test_legacy_camera_search_keeps_its_navigation(self, ui, dismiss, visible):
+        from relleno.hcp_export import open_anpr_search
+        page = Mock()
+        page.locator.return_value.filter.return_value.count.return_value = 0
+        visible.return_value.count.return_value = 0
+        open_anpr_search(page, 'https://localhost')
+        ui.return_value.first.click.assert_called()
+        page.goto.assert_not_called()
+
     def test_hikcentral_profiles_cover_localized_routes(self):
         self.assertIn('Vehicles', HIKCENTRAL_UI['module'])
         self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/anprVehicleTotal'))
