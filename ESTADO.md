@@ -1,11 +1,17 @@
-# Entrega 0.4.23
+# Entrega 0.4.24
 
-Compatibilidad ANPR seleccionada por el tráfico de la interfaz instalada: conserva
-Bumblebee/VehicleBiz/V0 y el respaldo Excel para otras versiones. Espera hasta diez
-segundos las respuestas de conteo y listado, reconoce el módulo Vehículo en español
-y corrige el error que impedía continuar al respaldo cuando el adaptador rechazaba
-una respuesta. Validación local del 22 de octubre: 7.573 registros en 76 páginas,
-con total exacto; sin envío al portal. Las 70 pruebas automatizadas pasan.
+ANPR conserva siempre el Excel original descargado desde HikCentral, tanto en
+la interfaz nueva como en la anterior. Se elimina la ruta que reconstruía un
+Excel desde los registros API: sus valores numéricos de dirección provocaban que
+el portal descartara todas las filas. Las exportaciones generadas anteriormente
+se conservan con su manifiesto y recepción; una nueva solicitud del mismo día
+obtiene y reutiliza un Excel nativo separado. Si el portal confirma recepción
+pero falla el procesamiento, la cola muestra un aviso sin reenviar a ciegas.
+
+Validación del 22 de octubre: archivo original de 7.573 filas; el portal reconoce
+6.172 registros de 9 cámaras, sin cámaras sin mapear, y descarta 1.401 por su filtro
+de dirección. No se alteran las filas ni se ejecutan correcciones de base de datos.
+Las 72 pruebas automatizadas pasan.
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
@@ -18,7 +24,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.23.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.24.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
@@ -58,11 +64,9 @@ libera tras un reinicio. Consultas repetidas reutilizan el lote local conservado
 
 En la pestaña ANPR puede elegir una fecha terminada y usar **Exportar de HikCentral
 y enviar**. El cliente inicia sesión en su portal web, selecciona las cámaras ANPR
-y fija el día completo. En versiones `Bumblebee/VehicleBiz/V0` reconoce el tráfico
-autenticado, pagina `VehicleLogs` y exige que las filas coincidan exactamente con
-`VehicleLogsCount`; además rechaza páginas repetidas o fechas ajenas. La sesión y
-sus cookies quedan dentro de Edge y no se copian a configuración ni diagnósticos.
-Para otras versiones conserva como respaldo la descarga Excel nativa sin imágenes.
+y fija el día completo. Se conserva la respuesta de conteo y se descarga el
+Excel nativo sin imágenes. No se reconstruyen tablas desde la API ni se traducen
+valores de dirección, encabezados o nombres de cámaras.
 Se utiliza Microsoft Edge en segundo plano y no requiere AppKey/SecretKey.
 
 Active la exportación diaria para procesar los días terminados a partir de la

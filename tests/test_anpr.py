@@ -111,3 +111,16 @@ class AnprTests(unittest.TestCase):
         self.add()
         self.box.drain({'binding': self.binding | {'centre_id':'other'}}, self.session)
         self.session.post.assert_not_called()
+
+    def test_processing_error_keeps_receipt_and_warns_without_resending(self):
+        self.add()
+        self.response.json.return_value = {'ok': True, 'receipt': {
+            'id': 'receipt-rejected-rows', 'status': 'comparison_error',
+            'total_rows': 100, 'valid_rows': 0}}
+        self.box.drain(self.config, self.session)
+        row = self.box.list()[0]
+        self.assertEqual(row['receipt_id'], 'receipt-rejected-rows')
+        self.assertEqual(row['state'], 'delivered')
+        self.assertIn('revisar', row['message'])
+        self.box.drain(self.config, self.session)
+        self.assertEqual(self.session.post.call_count, 1)

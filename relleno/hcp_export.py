@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 from relleno.storage import ROOT, read_secret
 from relleno.hikcentral import check, normalize_url
 from relleno.anpr import Outbox, file_hash
-from relleno.hcp_adapters import AdapterError, capture_kind
 
 
 class ExportError(ValueError):
@@ -60,6 +59,14 @@ def export_day(config, day):
     manifest = folder / 'manifest.json'
     box = Outbox()
     with box.sender_lock('export.lock'):
+        if manifest.exists():
+            previous = json.loads(manifest.read_text(encoding='utf-8'))
+            if previous.get('evidence', {}).get('adapter'):
+                # Preserve the old generated file, manifest and receipt for audit.
+                # Repeated requests now reuse a separate original native export.
+                folder = folder / 'native-excel'
+                folder.mkdir(parents=True, exist_ok=True)
+                manifest = folder / 'manifest.json'
         if manifest.exists():
             data = json.loads(manifest.read_text(encoding='utf-8'))
             if data.get('timezone') != config.get('timezone', 'America/Santiago'):
@@ -461,18 +468,6 @@ def _download(config, day, credentials, folder, progress):
                 if not date_range_contains_day(page, day):
                     raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
                 progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
-                parsed_url = urlsplit(url)
-                origin = f'{parsed_url.scheme}://{parsed_url.netloc}'
-                captured = {}
-                selected_adapter = {'value': None}
-
-                def capture_network_response(candidate):
-                    adapter, kind = capture_kind(candidate, origin)
-                    if adapter and candidate.status == 200:
-                        selected_adapter['value'] = adapter
-                        captured[kind] = candidate
-
-                page.on('response', capture_network_response)
                 with page.expect_response(lambda r: r.request.method == 'POST' and ANPR_COUNT_RESPONSE.search(r.url), timeout=30000) as count_response:
                     page.get_by_role('button', name=re.compile('^(Buscar|Search)$')).click()
                 response = count_response.value
@@ -480,28 +475,8 @@ def _download(config, day, credentials, folder, progress):
                     raise ExportError('La consulta ANPR falló. No se sustituyó por cero.')
                 evidence = response.json()
                 (folder / 'search-count.json').write_text(json.dumps(evidence, ensure_ascii=False), encoding='utf-8')
-                # Newer local HikCentral clients expose the complete authenticated
-                # row feed behind the same search. Prefer an exact, verified pull;
-                # retain the visual native-export workflow as compatibility fallback.
-                # Responses may arrive in either order on slower HikCentral releases.
-                # Unknown families retain the native Excel workflow.
-                for _attempt in range(40):
-                    if captured.get('count') and captured.get('list'):
-                        break
-                    page.wait_for_timeout(250)
-                adapter = selected_adapter['value']
-                if adapter and captured.get('count') and captured.get('list'):
-                    progress['message'] = 'HikCentral no completó la descarga paginada de registros ANPR.'
-                    try:
-                        source, api_evidence = adapter.extract(context, captured, day, folder)
-                        progress.setdefault('events', []).append(
-                            f'adapter {api_evidence["adapter"]} rows={api_evidence["count"]}'
-                        )
-                        return source, api_evidence
-                    except AdapterError as exc:
-                        progress.setdefault('events', []).append(
-                            f'adapter fallback {type(exc).__name__}'
-                        )
+                # Always retain HikCentral's original workbook. API enums are not
+                # interchangeable with the localized values in its native export.
                 progress['message'] = 'No se pudo abrir el diálogo de exportación ANPR de HikCentral.'
                 export = ui_text(page, 'export').first
                 export.click()

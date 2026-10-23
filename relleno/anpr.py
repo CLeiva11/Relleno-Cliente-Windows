@@ -199,7 +199,14 @@ class Outbox:
             data = None
         receipt = receipt_id(data)
         if 200 <= response.status_code < 300 and isinstance(data, dict) and data.get('ok') is True and receipt:
-            self.update(row['batch_id'], 'delivered', 'Recibido por Comprobaciones', receipt_id=receipt)
+            detail = data.get('receipt')
+            failed = isinstance(detail, dict) and (
+                detail.get('status') == 'comparison_error' or
+                (detail.get('total_rows', 0) and detail.get('valid_rows') == 0)
+            )
+            message = ('Recibido por Comprobaciones; revisar: el portal no pudo procesar los registros ANPR.'
+                       if failed else 'Recibido por Comprobaciones')
+            self.update(row['batch_id'], 'delivered', message, receipt_id=receipt)
         elif response.status_code >= 500 and idempotent:
             self.retry(row, attempts, f'Portal no disponible (HTTP {response.status_code}). Se reintentará.')
         elif response.status_code >= 500 or 200 <= response.status_code < 300:

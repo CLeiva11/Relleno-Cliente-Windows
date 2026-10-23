@@ -44,6 +44,34 @@ class ExportTests(unittest.TestCase):
                 with self.assertRaises(ExportError):
                     export_day(self.config(), '2026-10-20')
 
+    @patch('relleno.hcp_export.read_secret', return_value={'method':'username','account':'test','secret':'test-only'})
+    @patch('relleno.hcp_export.check')
+    @patch('relleno.hcp_export.download')
+    def test_generated_manifest_is_preserved_and_replaced_by_native_cache(self, download, check, secret):
+        from relleno.hcp_export import export_key
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / 'exports' / export_key(self.config(), date(2026,10,20))
+            folder.mkdir(parents=True)
+            original = folder / 'generated.xlsx'
+            original.write_bytes(b'old API export')
+            old_manifest = json.dumps({'evidence':{'adapter':'bumblebee-vehiclebiz-v0'}})
+            (folder / 'manifest.json').write_text(old_manifest, encoding='utf-8')
+            def native(config, day, credentials, target):
+                source = target / 'original-native.xlsx'
+                source.write_bytes(b'PK\x03\x04original native workbook')
+                return source, {'native':True}
+            download.side_effect = native
+            box = Outbox(root / 'queue')
+            with patch('relleno.hcp_export.ROOT', root), patch('relleno.hcp_export.Outbox', return_value=box):
+                first = export_day(self.config(), '2026-10-20')
+                self.assertEqual(export_day(self.config(), '2026-10-20'), first)
+            self.assertEqual(first.parent, folder / 'native-excel')
+            self.assertEqual(download.call_count, 1)
+            self.assertEqual(original.read_bytes(), b'old API export')
+            self.assertEqual((folder / 'manifest.json').read_text(encoding='utf-8'), old_manifest)
+
     def test_schedule_waits_until_one_am_and_keeps_missed_days(self):
         config = self.config()
         # UTC 03:30 is 00:30 in Santiago on this date.
