@@ -15,7 +15,7 @@ class AgentTests(unittest.TestCase):
                 {'source_kind': 'rf_counter', 'counting_enabled': True},
             ],
         }
-        self.assertEqual(capabilities(config), ['personas', 'vehiculos'])
+        self.assertEqual(capabilities(config), ['personas', 'vehiculos', 'diagnostico'])
 
     @patch('relleno.agent.send_batch', return_value='receipt-1')
     @patch('relleno.agent.extract_day', return_value={'batch_id': 'batch-1'})
@@ -72,6 +72,20 @@ class AgentTests(unittest.TestCase):
         config = {'binding': {'centre_id': 'centre'}}
         command = {'data_type': 'vehiculos', 'day': '2026-10-20'}
         self.assertEqual(execute_command(config, command, Mock()), ['receipt-anpr'])
+
+    @patch('relleno.agent.upload_diagnostic', return_value='diagnostic-1')
+    @patch('relleno.diagnostics.run_hikcentral')
+    def test_diagnostic_command_uploads_and_removes_archive(self, run, upload):
+        archive = Mock()
+        run.return_value = (archive, True, 'Diagnóstico completado')
+        config = {'binding': {'centre_id': 'centre'}}
+        command = {'id': 'command-1', 'data_type': 'diagnostico', 'day': '2026-10-20'}
+
+        result = execute_command(config, command, Mock())
+
+        self.assertEqual(result['diagnostic_id'], 'diagnostic-1')
+        upload.assert_called_once_with(config['binding'], archive, 'command-1')
+        archive.unlink.assert_called_once_with(missing_ok=True)
 
 
 if __name__ == '__main__':

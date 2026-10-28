@@ -1,8 +1,9 @@
+from pathlib import Path
 from urllib.parse import urlsplit, urljoin
 import requests
 
 BASE = 'https://siem.domoticatechnology.cl/relleno'
-CLIENT_VERSION = '0.4.25'
+CLIENT_VERSION = '0.4.27'
 
 
 class PortalError(ValueError):
@@ -48,13 +49,13 @@ def link(code, name):
         raise PortalError('El portal devolvió una vinculación incompleta.')
     # Preserve a successful one-use response securely before further processing.
     from relleno.storage import store_secret
-    store_secret('portal-recovery', {k: data[k] for k in ('agent_id', 'agent_token', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url') if k in data})
+    store_secret('portal-recovery', {k: data[k] for k in ('agent_id', 'agent_token', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url') if k in data})
     data['upload_url'] = endpoint(BASE, data['upload_url'])
     if data.get('people_count_url'):
         data['people_count_url'] = endpoint(BASE, data['people_count_url'])
         if data['people_count_url'] == data['upload_url']:
             raise ValueError('El canal Personas no puede usar el destino ANPR.')
-    for key in ('heartbeat_url', 'commands_url', 'command_result_url'):
+    for key in ('heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url'):
         if data.get(key):
             data[key] = endpoint(BASE, data[key])
     return data
@@ -63,13 +64,13 @@ def link(code, name):
 def persist_binding(data):
     from relleno.storage import load, save, store_secret
     store_secret('portal/' + str(data['agent_id']), {'token': data['agent_token']})
-    binding = {k: data[k] for k in ('agent_id', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url') if k in data}
+    binding = {k: data[k] for k in ('agent_id', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url') if k in data}
     binding['upload_url'] = endpoint(BASE, binding['upload_url'])
     if binding.get('people_count_url'):
         binding['people_count_url'] = endpoint(BASE, binding['people_count_url'])
         if binding['people_count_url'] == binding['upload_url']:
             raise PortalError('El canal Personas no puede usar el destino ANPR.')
-    for key in ('heartbeat_url', 'commands_url', 'command_result_url'):
+    for key in ('heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url'):
         if binding.get(key):
             binding[key] = endpoint(BASE, binding[key])
     config = load()
@@ -84,6 +85,7 @@ def binding_endpoint(binding, key):
         'heartbeat_url': '/api/comprobaciones/agentes/pulso/',
         'commands_url': '/api/comprobaciones/agentes/ordenes/',
         'command_result_url': '/api/comprobaciones/agentes/ordenes/resultado/',
+        'diagnostic_upload_url': '/api/comprobaciones/agentes/diagnosticos/',
     }
     value = binding.get(key) or defaults.get(key)
     if not value:
@@ -123,3 +125,32 @@ def agent_post(binding, key, payload):
         suffix = ': ' + detail if detail else '.'
         raise PortalError(f'El portal rechazó la solicitud (HTTP {response.status_code}){suffix}')
     return data
+
+
+def upload_diagnostic(binding, path, command_id):
+    path = Path(path)
+    url = binding_endpoint(binding, 'diagnostic_upload_url')
+    try:
+        with path.open('rb') as handle:
+            response = requests.post(
+                url,
+                headers={'Authorization': 'Bearer ' + agent_token(binding)},
+                data={'command_id': command_id},
+                files={'diagnostic': (path.name, handle, 'application/zip')},
+                timeout=(10, 180),
+                allow_redirects=False,
+            )
+    except requests.exceptions.SSLError:
+        raise PortalError('No se pudo verificar el certificado HTTPS del portal.') from None
+    except (OSError, requests.RequestException):
+        raise PortalError('No se pudo enviar el diagnóstico al portal.') from None
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    if not 200 <= response.status_code < 300 or not isinstance(data, dict) or data.get('ok') is not True:
+        raise PortalError(f'El portal rechazó el diagnóstico (HTTP {response.status_code}).')
+    diagnostic = data.get('diagnostic') or {}
+    if not diagnostic.get('id'):
+        raise PortalError('El portal no confirmó el diagnóstico recibido.')
+    return str(diagnostic['id'])

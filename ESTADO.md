@@ -1,4 +1,4 @@
-# Entrega 0.4.25
+# Entrega 0.4.27
 
 Por autorización del operador, Personas envía ceros estimados cuando una cámara
 no responde por HTTP/HTTPS. Conserva el inventario, cámara, dirección y zona
@@ -30,7 +30,7 @@ pero falla el procesamiento, la cola muestra un aviso sin reenviar a ciegas.
 Validación del 22 de octubre: archivo original de 7.573 filas; el portal reconoce
 6.172 registros de 9 cámaras, sin cámaras sin mapear, y descarta 1.401 por su filtro
 de dirección. No se alteran las filas ni se ejecutan correcciones de base de datos.
-Las 72 pruebas automatizadas pasan.
+Las pruebas automatizadas pasan.
 
 La extracción detecta capacidades ISAPI y prueba cuerpos estadísticos conocidos
 de firmware nuevo y legado. HikCentral reconoce las variantes de interfaz en
@@ -38,13 +38,16 @@ español e inglés; una versión desconocida se detiene y genera diagnóstico, s
 crear conteos en cero ni exportar otro intervalo.
 La versión 0.4.21 reconoce cuando HikCentral confirma el rango al cerrar su
 calendario automáticamente y continúa la consulta sin esperar un botón inexistente.
-La versión 0.4.22 espera que termine de cargar el árbol ANPR, cierra avisos tardíos
+La versión 0.4.23 espera que termine de cargar el árbol ANPR, cierra avisos tardíos
 de la tienda de aplicaciones y verifica la selección completa antes de consultar.
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.25.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.27.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
+
+Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre
+la interfaz real, no envía ANPR ni corrige datos y devuelve evidencia redactada al portal.
 No necesita Python. Abra Relleno Cliente desde Inicio o el escritorio.
 
 En Inicio, confirme el vínculo administrativo y configure la zona horaria. El

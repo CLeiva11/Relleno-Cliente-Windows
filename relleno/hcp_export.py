@@ -212,6 +212,39 @@ def dismiss_hikcentral_overlays(page):
                 pass
 
 
+def open_anpr_search(page, origin):
+    """Open vehicle-passing search across legacy and application-registry layouts."""
+    module = visible_text(page, HIKCENTRAL_UI['module'])
+    if not module.count():
+        applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
+        if applications.count():
+            applications.first.click()
+            dismiss_hikcentral_overlays(page)
+            module = visible_text(page, HIKCENTRAL_UI['module'])
+    if module.count():
+        module.first.wait_for(timeout=15000)
+        module.first.click()
+    else:
+        # Legacy installations expose ANPR directly in their main navigation.
+        ui_text(page, 'module').first.click()
+
+    search = ui_text(page, 'search_view')
+    try:
+        search.first.wait_for(timeout=10000)
+        search.first.click()
+    except Exception:
+        pass
+
+    root = ui_text(page, 'root')
+    try:
+        root.first.wait_for(timeout=15000)
+    except Exception:
+        # Some catalogues open registered vehicles instead of passing search.
+        page.goto(origin.rstrip('/') + '/#/anpr/vehicleSearch',
+                  wait_until='domcontentloaded', timeout=60000)
+        ui_text(page, 'root').first.wait_for(timeout=30000)
+
+
 def select_all_anpr_cameras(page, row, attempts=16):
     """Espera el árbol y cierra avisos tardíos antes de marcar su raíz."""
     loading_pattern = re.compile(r'^(Cargando(?:\.\.\.)?|Loading(?:\.\.\.)?)$', re.I)
@@ -287,7 +320,7 @@ def save_web_diagnostic(progress, error):
     if progress.get('diagnostic'):
         # Ya se guardó con el navegador abierto; no sobrescribir con la página cerrada.
         return progress['diagnostic']
-    folder = ROOT / 'diagnostics'
+    folder = Path(progress.get('diagnostic_folder') or ROOT / 'diagnostics')
     folder.mkdir(parents=True, exist_ok=True)
     from relleno.portal import CLIENT_VERSION
     report = {
@@ -303,10 +336,10 @@ def save_web_diagnostic(progress, error):
     }
     if True:  # Captura en cualquier etapa: muestra qué veía Edge al fallar.
         try:
-            page.screenshot(path=str(folder / 'hikcentral-login.png'), full_page=True, timeout=5000)
+            diagnostic_checkpoint(progress, 'error')
         except Exception:
             report['screenshot_incomplete'] = True
-    if progress.get('phase') == 'authenticated':
+    if progress.get('phase') == 'authenticated' and not progress.get('diagnostic_mode'):
         try:
             # Textos cortos de menús y botones visibles (sin valores de campos).
             report['visible_texts'] = page.evaluate("""() => {
@@ -344,8 +377,67 @@ def save_web_diagnostic(progress, error):
     return target
 
 
-def download(config, day, credentials, folder):
-    progress = {'message': 'No se pudo iniciar Microsoft Edge para abrir HikCentral.'}
+def diagnostic_checkpoint(progress, stage):
+    """Capture UI evidence without field values, plates, images or video."""
+    if not progress.get('diagnostic_mode') and stage != 'error':
+        return None
+    page = progress.get('page')
+    if page is None or page.is_closed():
+        return None
+    folder = Path(progress.get('diagnostic_folder') or ROOT / 'diagnostics')
+    folder.mkdir(parents=True, exist_ok=True)
+    index = len(progress.setdefault('checkpoints', [])) + 1
+    safe_stage = re.sub(r'[^a-z0-9-]+', '-', str(stage).casefold()).strip('-')[:40] or 'step'
+    screenshot = folder / f'{index:02d}-{safe_stage}.png'
+    marker = 'relleno-diagnostic-redaction'
+    try:
+        controls = page.evaluate(r"""() => {
+            const clean = value => (value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+            return [...document.querySelectorAll('button,a,[role=button],[role=menuitem],[role=tab],label')]
+                .filter(el => { const b=el.getBoundingClientRect(); return b.width>0 && b.height>0; })
+                .slice(0, 160)
+                .map(el => ({tag:el.tagName.toLowerCase(), role:el.getAttribute('role') || '', text:clean(el.innerText)}));
+        }""")
+    except Exception:
+        controls = []
+    try:
+        page.evaluate("""id => {
+            document.getElementById(id)?.remove();
+            const style=document.createElement('style'); style.id=id;
+            style.textContent=`input,textarea{color:transparent!important;text-shadow:none!important}
+                tbody,[role=rowgroup],[class*=result-list],[class*=vehicle-list],img,video,canvas{filter:blur(12px)!important}`;
+            document.documentElement.appendChild(style);
+        }""", marker)
+        page.screenshot(path=str(screenshot), full_page=False, timeout=7000)
+    except Exception:
+        screenshot = None
+    finally:
+        try:
+            page.evaluate("id => document.getElementById(id)?.remove()", marker)
+        except Exception:
+            pass
+    item = {
+        'index': index,
+        'stage': str(stage),
+        'message': str(progress.get('message') or ''),
+        'url': safe_url(getattr(page, 'url', '')),
+        'title': page.title() if not page.is_closed() else '',
+        'screenshot': screenshot.name if screenshot else None,
+        'controls': controls,
+    }
+    progress['checkpoints'].append(item)
+    (folder / 'steps.json').write_text(
+        json.dumps(progress['checkpoints'], ensure_ascii=False, indent=2), encoding='utf-8'
+    )
+    return item
+
+
+def download(config, day, credentials, folder, diagnostic_folder=None):
+    progress = {
+        'message': 'No se pudo iniciar Microsoft Edge para abrir HikCentral.',
+        'diagnostic_mode': diagnostic_folder is not None,
+        'diagnostic_folder': str(diagnostic_folder) if diagnostic_folder else None,
+    }
     try:
         return _download(config, day, credentials, folder, progress)
     except ExportError as exc:
@@ -397,6 +489,7 @@ def _download(config, day, credentials, folder, progress):
                     login_frame, username, password = login_controls(page, events=progress.setdefault('events', []))
                     page = login_frame.page
                     progress['page'] = page
+                    diagnostic_checkpoint(progress, 'login-detectado')
                 except Exception as exc:
                     # Capture while the browser context is still open.
                     save_web_diagnostic(progress, exc)
@@ -419,15 +512,10 @@ def _download(config, day, credentials, folder, progress):
                     password.wait_for(state='hidden', timeout=30000)
                 except Exception:
                     raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
+                diagnostic_checkpoint(progress, 'sesion-iniciada')
                 progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
-                ui_text(page, 'module').first.click()
-                # En versiones nuevas el módulo abre un menú lateral; se entra a la búsqueda de pasos.
-                search_menu = ui_text(page, 'search_view')
-                try:
-                    search_menu.first.wait_for(timeout=10000)
-                    search_menu.first.click()
-                except Exception:
-                    pass  # Versión del piloto: ANPR abre directamente la búsqueda.
+                open_anpr_search(page, url)
+                diagnostic_checkpoint(progress, 'modulo-anpr')
                 progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
                 root = ui_text(page, 'root').first
                 root.wait_for(timeout=30000)
@@ -436,6 +524,7 @@ def _download(config, day, credentials, folder, progress):
                 row = root.locator("xpath=ancestor::*[.//*[@treenode_check or @type='checkbox' or contains(@class,'checkbox')]][1]")
                 if not select_all_anpr_cameras(page, row):
                     raise ExportError('HikCentral no marcó todas las cámaras ANPR; no se exportó una selección parcial.')
+                diagnostic_checkpoint(progress, 'camaras-seleccionadas')
                 progress['message'] = 'No se pudo abrir el selector de fechas de HikCentral.'
                 placeholder = page.get_by_placeholder(re.compile(r'^(Por favor, seleccione\.|Please select\.)$')).filter(visible=True)
                 if placeholder.count():
@@ -467,6 +556,7 @@ def _download(config, day, credentials, folder, progress):
                     ui_text(page, 'time').first.click()
                 if not date_range_contains_day(page, day):
                     raise ExportError('HikCentral no conservó las fechas solicitadas; no se exportó otro intervalo.')
+                diagnostic_checkpoint(progress, 'fecha-configurada')
                 progress['message'] = 'HikCentral no respondió a la búsqueda ANPR del día solicitado.'
                 with page.expect_response(lambda r: r.request.method == 'POST' and ANPR_COUNT_RESPONSE.search(r.url), timeout=30000) as count_response:
                     page.get_by_role('button', name=re.compile('^(Buscar|Search)$')).click()
@@ -475,6 +565,7 @@ def _download(config, day, credentials, folder, progress):
                     raise ExportError('La consulta ANPR falló. No se sustituyó por cero.')
                 evidence = response.json()
                 (folder / 'search-count.json').write_text(json.dumps(evidence, ensure_ascii=False), encoding='utf-8')
+                diagnostic_checkpoint(progress, 'busqueda-completada')
                 # Always retain HikCentral's original workbook. API enums are not
                 # interchangeable with the localized values in its native export.
                 progress['message'] = 'No se pudo abrir el diálogo de exportación ANPR de HikCentral.'
@@ -510,6 +601,7 @@ def _download(config, day, credentials, folder, progress):
                 download.save_as(str(source))
                 if download.failure() or not source.exists() or source.stat().st_size == 0:
                     raise ExportError('HikCentral no terminó de descargar el archivo original.')
+                diagnostic_checkpoint(progress, 'excel-generado')
                 return source, evidence
             except Exception as exc:
                 # Captura con Edge aún abierto, en cualquier etapa del flujo.

@@ -1,5 +1,8 @@
 name: Windows installer
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -37,3 +40,10 @@ jobs:
             dist/RellenoCliente-Setup-*.exe
             dist/SHA256SUMS.txt
           if-no-files-found: error
+      - name: Publish tagged installer
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/RellenoCliente-Setup-*.exe
+            dist/SHA256SUMS.txt

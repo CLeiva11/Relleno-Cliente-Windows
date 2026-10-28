@@ -1,7 +1,7 @@
 """Portal heartbeat and remote generation commands for the Windows worker."""
 from relleno.cameras import extract_day, probe, CameraConnectionError, estimated_zero_day
 from relleno.people import send_batch
-from relleno.portal import CLIENT_VERSION, agent_post
+from relleno.portal import CLIENT_VERSION, agent_post, upload_diagnostic
 from relleno.storage import read_secret, save
 
 
@@ -17,6 +17,7 @@ def capabilities(config):
     credentials = read_secret('hikcentral')
     if hikcentral.get('url') and credentials and credentials.get('method') == 'username':
         result.append('vehiculos')
+        result.append('diagnostico')
     return result
 
 
@@ -32,12 +33,13 @@ def poll_command(config):
     return agent_post(config['binding'], 'commands_url', {}).get('command')
 
 
-def complete_command(config, command, state, message, receipt_ids=None):
+def complete_command(config, command, state, message, receipt_ids=None, diagnostic_id=None):
     return agent_post(config['binding'], 'command_result_url', {
         'command_id': command['id'],
         'state': state,
         'message': message,
         'receipt_ids': receipt_ids or [],
+        'diagnostic_id': diagnostic_id or '',
     })
 
 
@@ -103,6 +105,14 @@ def execute_command(config, command, outbox):
         receipts = generate_people(config, command['day'])
     elif command['data_type'] == 'vehiculos':
         receipts = generate_anpr(config, command['day'], outbox)
+    elif command['data_type'] == 'diagnostico':
+        from relleno.diagnostics import run_hikcentral
+        archive, successful, message = run_hikcentral(config, command['day'])
+        try:
+            diagnostic_id = upload_diagnostic(config['binding'], archive, command['id'])
+        finally:
+            archive.unlink(missing_ok=True)
+        return {'diagnostic_id': diagnostic_id, 'successful': successful, 'message': message}
     else:
         raise ValueError('El portal envió un tipo de generación desconocido.')
     return receipts

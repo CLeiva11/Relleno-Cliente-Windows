@@ -85,8 +85,15 @@ def run():
                     command = poll_command(config)
                     if command:
                         try:
-                            receipts = execute_command(config, command, box)
-                            complete_command(config, command, 'completed', 'Generación recibida por Comprobaciones', receipts)
+                            result = execute_command(config, command, box)
+                            if isinstance(result, dict) and result.get('diagnostic_id'):
+                                complete_command(
+                                    config, command, 'completed' if result.get('successful') else 'failed',
+                                    result.get('message') or 'Diagnóstico recibido',
+                                    diagnostic_id=result['diagnostic_id'],
+                                )
+                            else:
+                                complete_command(config, command, 'completed', 'Generación recibida por Comprobaciones', result)
                         except Exception as exc:
                             complete_command(config, command, 'failed', str(exc)[:500])
                 except Exception:
