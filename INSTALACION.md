@@ -1,6 +1,6 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.4.28.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.29.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
@@ -20,7 +20,9 @@
    arranca con Windows y puede seguir trabajando con su ventana cerrada.
 7. Compruebe en Inicio que el portal confirma la señal. Desde Comprobaciones podrá
    solicitar Personas o ANPR para un día terminado sin afectar la programación.
-8. En Conteos, active la extracción diaria de Personas si el centro utiliza cámaras
+8. Desde esta versión, las siguientes actualizaciones aprobadas se descargarán e
+   instalarán automáticamente desde el portal, sin abrir GitHub en el equipo.
+9. En Conteos, active la extracción diaria de Personas si el centro utiliza cámaras
    DS-2CD6825G0/C-IVS o iDS-2CD7146G0-IZS y confirme que Probar cámaras detecta el
    conteo habilitado.
 

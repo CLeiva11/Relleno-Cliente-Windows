@@ -3,7 +3,7 @@ from urllib.parse import urlsplit, urljoin
 import requests
 
 BASE = 'https://siem.domoticatechnology.cl/relleno'
-CLIENT_VERSION = '0.4.28'
+CLIENT_VERSION = '0.4.29'
 
 
 class PortalError(ValueError):
@@ -49,13 +49,13 @@ def link(code, name):
         raise PortalError('El portal devolvió una vinculación incompleta.')
     # Preserve a successful one-use response securely before further processing.
     from relleno.storage import store_secret
-    store_secret('portal-recovery', {k: data[k] for k in ('agent_id', 'agent_token', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url') if k in data})
+    store_secret('portal-recovery', {k: data[k] for k in ('agent_id', 'agent_token', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url', 'update_check_url', 'update_download_url') if k in data})
     data['upload_url'] = endpoint(BASE, data['upload_url'])
     if data.get('people_count_url'):
         data['people_count_url'] = endpoint(BASE, data['people_count_url'])
         if data['people_count_url'] == data['upload_url']:
             raise ValueError('El canal Personas no puede usar el destino ANPR.')
-    for key in ('heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url'):
+    for key in ('heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url', 'update_check_url', 'update_download_url'):
         if data.get(key):
             data[key] = endpoint(BASE, data[key])
     return data
@@ -64,13 +64,13 @@ def link(code, name):
 def persist_binding(data):
     from relleno.storage import load, save, store_secret
     store_secret('portal/' + str(data['agent_id']), {'token': data['agent_token']})
-    binding = {k: data[k] for k in ('agent_id', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url') if k in data}
+    binding = {k: data[k] for k in ('agent_id', 'centre_id', 'centre_name', 'upload_url', 'people_count_url', 'heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url', 'update_check_url', 'update_download_url') if k in data}
     binding['upload_url'] = endpoint(BASE, binding['upload_url'])
     if binding.get('people_count_url'):
         binding['people_count_url'] = endpoint(BASE, binding['people_count_url'])
         if binding['people_count_url'] == binding['upload_url']:
             raise PortalError('El canal Personas no puede usar el destino ANPR.')
-    for key in ('heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url'):
+    for key in ('heartbeat_url', 'commands_url', 'command_result_url', 'diagnostic_upload_url', 'update_check_url', 'update_download_url'):
         if binding.get(key):
             binding[key] = endpoint(BASE, binding[key])
     config = load()
@@ -86,6 +86,8 @@ def binding_endpoint(binding, key):
         'commands_url': '/api/comprobaciones/agentes/ordenes/',
         'command_result_url': '/api/comprobaciones/agentes/ordenes/resultado/',
         'diagnostic_upload_url': '/api/comprobaciones/agentes/diagnosticos/',
+        'update_check_url': '/api/comprobaciones/agentes/actualizacion/',
+        'update_download_url': '/api/comprobaciones/agentes/actualizacion/descargar/',
     }
     value = binding.get(key) or defaults.get(key)
     if not value:

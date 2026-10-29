@@ -68,6 +68,7 @@ def run():
             people_scheduler = PeopleScheduler(box)
             log.info('Servicio de Comprobaciones iniciado')
             last_heartbeat = 0
+            last_update_check = 0
             while True:
                 config = load()
                 if not config.get('binding'):
@@ -82,6 +83,12 @@ def run():
                     if time.time() - last_heartbeat >= 60:
                         heartbeat(config)
                         last_heartbeat = time.time()
+                    if time.time() - last_update_check >= 6 * 60 * 60:
+                        from relleno.updater import check_and_install
+                        last_update_check = time.time()
+                        if check_and_install(config):
+                            log.info('Actualización verificada; el instalador reiniciará el servicio')
+                            return
                     command = poll_command(config)
                     if command:
                         try:
