@@ -8,7 +8,7 @@ from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
                                 ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
                                 date_range_contains_day, dismiss_hikcentral_overlays,
-                                select_all_anpr_cameras)
+                                preferred_anpr_module, select_all_anpr_cameras)
 from relleno.anpr_schedule import Scheduler
 
 
@@ -21,14 +21,28 @@ class ExportTests(unittest.TestCase):
         page = Mock()
         applications = page.locator.return_value.filter.return_value
         applications.count.return_value = 1
-        anpr = visible.return_value
-        anpr.count.side_effect = [0, 1]
+        missing, anpr = Mock(), Mock()
+        missing.count.return_value = 0
+        anpr.count.return_value = 1
+        visible.side_effect = [missing, missing, anpr]
         open_anpr_search(page, 'https://localhost')
         page.locator.assert_called_once_with('#navigation_addMenuBtn')
         applications.first.click.assert_called_once()
         anpr.first.wait_for.assert_called_once_with(timeout=15000)
         anpr.first.click.assert_called_once()
         page.goto.assert_not_called()
+
+    @patch('relleno.hcp_export.visible_text')
+    def test_anpr_tab_wins_when_vehicle_tab_appears_first(self, visible):
+        page = Mock()
+        anpr, vehicles = Mock(), Mock()
+        anpr.count.return_value = 1
+        vehicles.count.return_value = 1
+        visible.side_effect = lambda _page, labels: anpr if labels == ('ANPR',) else vehicles
+
+        self.assertIs(preferred_anpr_module(page), anpr)
+        anpr.count.assert_called_once_with()
+        vehicles.count.assert_not_called()
 
     @patch('relleno.hcp_export.visible_text')
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
@@ -224,6 +238,9 @@ class TypeIntoTests(unittest.TestCase):
 
     def test_first_use_overlays_never_block_export(self):
         page = Mock()
+        buttons = Mock()
+        page.get_by_role.return_value.filter.return_value = buttons
+        buttons.count.return_value = 0
         candidates = Mock()
         page.get_by_text.return_value.filter.return_value = candidates
         candidates.count.return_value = 1
@@ -231,6 +248,7 @@ class TypeIntoTests(unittest.TestCase):
 
         dismiss_hikcentral_overlays(page)
 
+        self.assertEqual(page.get_by_role.call_count, 3)
         self.assertEqual(page.get_by_text.call_count, 3)
         self.assertEqual(candidates.nth.return_value.click.call_count, 3)
 

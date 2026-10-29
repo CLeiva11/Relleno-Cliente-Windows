@@ -1,4 +1,9 @@
-# Entrega 0.4.29
+# Entrega 0.4.30
+
+La navegación ANPR ahora prioriza la pestaña exacta `ANPR` cuando HikCentral
+también muestra `Vehículo` antes en la barra principal. Además cierra el aviso
+inicial de la tienda de aplicaciones por su botón antes de buscar los controles.
+Este ajuste corresponde al diagnóstico de La Laguna del 29 de octubre.
 
 Por autorización del operador, Personas envía ceros estimados cuando una cámara
 no responde por HTTP/HTTPS. Conserva el inventario, cámara, dirección y zona
@@ -16,7 +21,7 @@ manuales, programadas y órdenes remotas. El portal debe conservar y mostrar los
 metadatos de calidad para distinguirlos en su interfaz; el cliente no puede
 asegurar ese comportamiento del servidor. La corrección sigue siendo manual.
 No se enviaron ceros a cámaras reales durante las pruebas de esta entrega.
-79 pruebas automatizadas aprobadas.
+87 pruebas automatizadas aprobadas.
 
 
 ANPR conserva siempre el Excel original descargado desde HikCentral, tanto en
@@ -43,7 +48,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.29.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.30.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 
 Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre

@@ -204,7 +204,10 @@ def dismiss_hikcentral_overlays(page):
         r'^(OK|Aceptar|Got it)$',
     )
     for label in labels:
-        candidates = page.get_by_text(re.compile(label, re.I)).filter(visible=True)
+        pattern = re.compile(label, re.I)
+        candidates = page.get_by_role('button', name=pattern).filter(visible=True)
+        if not candidates.count():
+            candidates = page.get_by_text(pattern).filter(visible=True)
         for index in range(min(candidates.count(), 3)):
             try:
                 candidates.nth(index).click(timeout=2000, force=True)
@@ -212,19 +215,28 @@ def dismiss_hikcentral_overlays(page):
                 pass
 
 
+def preferred_anpr_module(page):
+    """Prefer the explicit ANPR tab over adjacent vehicle catalogues."""
+    anpr = visible_text(page, ('ANPR',))
+    if anpr.count():
+        return anpr
+    return visible_text(page, HIKCENTRAL_UI['module'][1:])
+
+
 def open_anpr_search(page, origin):
     """Open vehicle-passing search across legacy and application-registry layouts."""
     dismiss_hikcentral_overlays(page)
-    module = visible_text(page, HIKCENTRAL_UI['module'])
+    module = preferred_anpr_module(page)
     if not module.count():
         applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
         if applications.count():
             applications.first.click()
             dismiss_hikcentral_overlays(page)
-            module = visible_text(page, HIKCENTRAL_UI['module'])
+            module = preferred_anpr_module(page)
     if module.count():
         module.first.wait_for(timeout=15000)
         module.first.click(force=True)
+        dismiss_hikcentral_overlays(page)
     else:
         # Legacy installations expose ANPR directly in their main navigation.
         ui_text(page, 'module').first.click(force=True)
