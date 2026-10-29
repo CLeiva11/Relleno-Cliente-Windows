@@ -1,4 +1,4 @@
-# Entrega 0.4.27
+# Entrega 0.4.28
 
 Por autorización del operador, Personas envía ceros estimados cuando una cámara
 no responde por HTTP/HTTPS. Conserva el inventario, cámara, dirección y zona
@@ -43,7 +43,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.27.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.28.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 
 Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre

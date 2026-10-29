@@ -2,7 +2,7 @@
 
 ## Preparación
 
-1. Descargue `RellenoCliente-Setup-0.4.27.exe` y `SHA256SUMS.txt` desde la última versión publicada en GitHub Releases.
+1. Descargue `RellenoCliente-Setup-0.4.28.exe` y `SHA256SUMS.txt` desde la última versión publicada en GitHub Releases.
 2. Ejecute el instalador con el mismo usuario de Windows que usa HikCentral. Puede instalarse sobre la versión anterior: conserva vínculo, cámaras, certificados y credenciales guardadas.
 3. Abra **Relleno Cliente** y confirme que el centro vinculado sea **Espacio Urbano Gran Avenida**.
 4. En **HikCentral**, configure la URL local, usuario y contraseña. Pulse **Guardar y comprobar**.
@@ -12,7 +12,7 @@
 
 1. Deje iniciada la sesión de Windows. El navegador de automatización necesita una sesión interactiva disponible.
 2. En SIEM abra **Relleno > Comprobaciones > Espacio Urbano Gran Avenida**.
-3. Verifique que el equipo figure **activo**, con versión `0.4.27` y capacidad de Vehículos.
+3. Verifique que el equipo figure **activo**, con versión `0.4.28` y capacidad de Vehículos.
 4. Seleccione un día terminado que tenga conteos ANPR conocidos.
 5. Pulse **Diagnosticar HikCentral** y confirme una sola vez.
 6. Espere a que el estado cambie de **En espera** a **Procesando** y luego a **Completado** o **Falló**.

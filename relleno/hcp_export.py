@@ -214,6 +214,7 @@ def dismiss_hikcentral_overlays(page):
 
 def open_anpr_search(page, origin):
     """Open vehicle-passing search across legacy and application-registry layouts."""
+    dismiss_hikcentral_overlays(page)
     module = visible_text(page, HIKCENTRAL_UI['module'])
     if not module.count():
         applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
@@ -223,10 +224,10 @@ def open_anpr_search(page, origin):
             module = visible_text(page, HIKCENTRAL_UI['module'])
     if module.count():
         module.first.wait_for(timeout=15000)
-        module.first.click()
+        module.first.click(force=True)
     else:
         # Legacy installations expose ANPR directly in their main navigation.
-        ui_text(page, 'module').first.click()
+        ui_text(page, 'module').first.click(force=True)
 
     search = ui_text(page, 'search_view')
     try:
