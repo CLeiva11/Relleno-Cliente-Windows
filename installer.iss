@@ -1,12 +1,12 @@
 [Setup]
 AppId={{E91A903A-1ACD-45D4-B1EA-EC4DDC3EAAD2}
 AppName=Relleno Cliente
-AppVersion=0.4.35
+AppVersion=0.4.36
 DefaultDirName={localappdata}\Programs\RellenoCliente
 DefaultGroupName=Relleno Cliente
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=RellenoCliente-Setup-0.4.35
+OutputBaseFilename=RellenoCliente-Setup-0.4.36
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -36,6 +36,38 @@ Filename: "{app}\RellenoCliente.exe"; Description: "Configurar centro y cámaras
 [Code]
 // El servicio en segundo plano no tiene ventana y bloquea los archivos al
 // actualizar: se cierra antes de copiar y [Run] lo vuelve a iniciar.
+function HasSwitch(const Value: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), Value) = 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+  LogPath: String;
+  Params: String;
+begin
+  Result := True;
+  // Las versiones <= 0.4.34 iniciaban Setup con /VERYSILENT. Relanzar una
+  // sola vez permite mostrar progreso incluso al actualizar desde ellas.
+  if HasSwitch('/VERYSILENT') and not HasSwitch('/RELAUNCHED') then
+  begin
+    LogPath := ExpandConstant('{localappdata}\RellenoCliente\updates\installer.log');
+    Params := '/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS ' +
+      '/RELAUNCHED /LOG="' + LogPath + '"';
+    if Exec(ExpandConstant('{srcexe}'), Params, '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
+      Result := False;
+  end;
+end;
+
 procedure StopRellenoCliente();
 var
   ResultCode: Integer;

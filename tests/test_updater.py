@@ -11,7 +11,7 @@ from relleno.updater import available, download, launch, version_tuple
 class UpdaterTests(unittest.TestCase):
     @patch('relleno.updater.subprocess.Popen')
     def test_verified_installer_can_be_started_from_the_desktop(self, popen):
-        installer = Path('RellenoCliente-Setup-0.4.35.exe')
+        installer = Path('RellenoCliente-Setup-0.4.36.exe')
 
         launch(installer)
 

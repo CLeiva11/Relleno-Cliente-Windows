@@ -11,6 +11,9 @@ class InstallerTests(unittest.TestCase):
         self.assertNotIn("waituntilterminated", script)
         self.assertIn("'/F /IM RellenoCliente.exe'", script)
         self.assertNotIn("'/F /T /IM RellenoCliente.exe'", script)
+        self.assertIn("HasSwitch('/VERYSILENT')", script)
+        self.assertIn("not HasSwitch('/RELAUNCHED')", script)
+        self.assertIn("'/SILENT /SUPPRESSMSGBOXES", script)
 
 
 if __name__ == "__main__":
