@@ -1,4 +1,8 @@
-# Entrega 0.4.31
+# Entrega 0.4.32
+
+Inicio incorpora **Buscar actualización** junto al estado del portal. Informa la
+versión instalada, consulta el canal autenticado y, previa confirmación, descarga,
+verifica e instala de inmediato la versión disponible.
 
 La navegación ANPR espera ahora que desaparezca la carga inicial de HikCentral
 y reintenta tres veces la pestaña antes de recurrir a una ruta alternativa. Esto
@@ -25,7 +29,7 @@ manuales, programadas y órdenes remotas. El portal debe conservar y mostrar los
 metadatos de calidad para distinguirlos en su interfaz; el cliente no puede
 asegurar ese comportamiento del servidor. La corrección sigue siendo manual.
 No se enviaron ceros a cámaras reales durante las pruebas de esta entrega.
-88 pruebas automatizadas aprobadas.
+89 pruebas automatizadas aprobadas.
 
 
 ANPR conserva siempre el Excel original descargado desde HikCentral, tanto en
@@ -52,7 +56,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.31.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.32.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 
 Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre

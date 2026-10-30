@@ -5,10 +5,21 @@ import unittest
 from unittest.mock import Mock, patch
 
 from relleno.portal import PortalError
-from relleno.updater import available, download, version_tuple
+from relleno.updater import available, download, launch, version_tuple
 
 
 class UpdaterTests(unittest.TestCase):
+    @patch('relleno.updater.subprocess.Popen')
+    def test_verified_installer_can_be_started_from_the_desktop(self, popen):
+        installer = Path('RellenoCliente-Setup-0.4.32.exe')
+
+        launch(installer)
+
+        args, kwargs = popen.call_args
+        self.assertEqual(args[0][0], str(installer))
+        self.assertIn('/CLOSEAPPLICATIONS', args[0])
+        self.assertTrue(kwargs['close_fds'])
+
     def test_versions_are_numeric_and_downgrades_are_ignored(self):
         self.assertGreater(version_tuple('0.4.29'), version_tuple('0.4.9'))
         with patch('relleno.updater.agent_post', return_value={

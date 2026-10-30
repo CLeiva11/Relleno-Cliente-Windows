@@ -77,6 +77,15 @@ def download(binding, metadata):
         temporary.unlink(missing_ok=True)
 
 
+def launch(installer):
+    """Start the verified installer; Inno Setup closes and resumes the agent."""
+    return subprocess.Popen(
+        [str(installer), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS'],
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+        close_fds=True,
+    )
+
+
 def check_and_install(config):
     if not getattr(sys, 'frozen', False) or not config.get('binding'):
         return False
@@ -84,9 +93,5 @@ def check_and_install(config):
     if not metadata:
         return False
     installer = download(config['binding'], metadata)
-    subprocess.Popen(
-        [str(installer), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS'],
-        creationflags=subprocess.CREATE_NO_WINDOW,
-        close_fds=True,
-    )
+    launch(installer)
     return True

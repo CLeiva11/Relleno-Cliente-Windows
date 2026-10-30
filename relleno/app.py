@@ -143,7 +143,49 @@ class App:
             def done(data):
                 self.portal_status.config(text='Portal: conectado. Última señal confirmada ' + str(data.get('seen_at') or 'ahora'))
             self.background('Comprobando conexión con el portal…', lambda: heartbeat(load()), done)
-        ttk.Button(frame, text='Comprobar conexión con el portal', command=test_portal).pack(anchor='w', pady=(0, 12))
+        portal_actions = ttk.Frame(frame)
+        portal_actions.pack(fill='x', pady=(0, 12))
+        ttk.Button(portal_actions, text='Comprobar conexión', command=test_portal).pack(side='left')
+        from relleno.portal import CLIENT_VERSION
+        ttk.Label(portal_actions, text=f'Versión {CLIENT_VERSION}').pack(side='right', padx=(8, 0))
+
+        def check_update():
+            if not self.config.get('binding'):
+                messagebox.showinfo('Vinculación pendiente', 'Vincule primero este equipo.')
+                return
+            from relleno.updater import available, download, launch
+
+            def found(metadata):
+                if not metadata:
+                    messagebox.showinfo('Aplicación actualizada', f'Ya tiene la última versión ({CLIENT_VERSION}).')
+                    return
+                version = metadata['version']
+                if not messagebox.askyesno(
+                    'Actualización disponible',
+                    f'Está disponible la versión {version}. ¿Desea descargarla e instalarla ahora?',
+                ):
+                    return
+
+                def downloaded(installer):
+                    messagebox.showinfo(
+                        'Actualización verificada',
+                        f'La versión {version} se instalará ahora. La aplicación se cerrará y volverá a iniciar.',
+                    )
+                    launch(installer)
+
+                self.background(
+                    f'Descargando y verificando la versión {version}…',
+                    lambda: download(load()['binding'], metadata),
+                    downloaded,
+                )
+
+            self.background(
+                'Buscando actualizaciones…',
+                lambda: available(load()['binding']),
+                found,
+            )
+
+        ttk.Button(portal_actions, text='Buscar actualización', command=check_update).pack(side='left', padx=8)
         advanced = ttk.LabelFrame(frame, text='Preferencias', padding=10)
         advanced.pack(fill='x')
         zone = self.field(advanced, 'Zona horaria', self.config.get('timezone', 'America/Santiago'), choices=('America/Santiago', 'America/Punta_Arenas', 'America/Coyhaique', 'Pacific/Easter'))
