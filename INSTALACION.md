@@ -1,6 +1,6 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.4.30.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.31.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.

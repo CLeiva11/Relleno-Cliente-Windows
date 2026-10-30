@@ -223,39 +223,57 @@ def preferred_anpr_module(page):
     return visible_text(page, HIKCENTRAL_UI['module'][1:])
 
 
-def open_anpr_search(page, origin):
-    """Open vehicle-passing search across legacy and application-registry layouts."""
-    dismiss_hikcentral_overlays(page)
-    module = preferred_anpr_module(page)
-    if not module.count():
-        applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
-        if applications.count():
-            applications.first.click()
-            dismiss_hikcentral_overlays(page)
-            module = preferred_anpr_module(page)
-    if module.count():
-        module.first.wait_for(timeout=15000)
-        module.first.click(force=True)
-        dismiss_hikcentral_overlays(page)
-    else:
-        # Legacy installations expose ANPR directly in their main navigation.
-        ui_text(page, 'module').first.click(force=True)
-
-    search = ui_text(page, 'search_view')
+def wait_hikcentral_idle(page, timeout=15000):
+    """Wait for the dashboard loading mask that can discard early tab clicks."""
+    loading = page.get_by_text(
+        re.compile(r'^(Cargando(?:\.\.\.)?|Loading(?:\.\.\.)?)$', re.I)
+    ).filter(visible=True)
     try:
-        search.first.wait_for(timeout=10000)
-        search.first.click()
+        loading.first.wait_for(state='hidden', timeout=timeout)
     except Exception:
         pass
 
+
+def open_anpr_search(page, origin):
+    """Open vehicle-passing search across legacy and application-registry layouts."""
     root = ui_text(page, 'root')
-    try:
-        root.first.wait_for(timeout=15000)
-    except Exception:
-        # Some catalogues open registered vehicles instead of passing search.
-        page.goto(origin.rstrip('/') + '/#/anpr/vehicleSearch',
-                  wait_until='domcontentloaded', timeout=60000)
-        ui_text(page, 'root').first.wait_for(timeout=30000)
+    for _attempt in range(3):
+        wait_hikcentral_idle(page)
+        dismiss_hikcentral_overlays(page)
+        module = preferred_anpr_module(page)
+        if not module.count():
+            applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
+            if applications.count():
+                applications.first.click()
+                dismiss_hikcentral_overlays(page)
+                module = preferred_anpr_module(page)
+        if module.count():
+            module.first.wait_for(timeout=15000)
+            module.first.click(force=True)
+            wait_hikcentral_idle(page)
+            dismiss_hikcentral_overlays(page)
+        else:
+            # Legacy installations expose ANPR directly in their main navigation.
+            ui_text(page, 'module').first.click(force=True)
+
+        search = ui_text(page, 'search_view')
+        try:
+            search.first.wait_for(timeout=5000)
+            search.first.click(force=True)
+        except Exception:
+            pass
+        try:
+            root.first.wait_for(timeout=10000)
+            return
+        except Exception:
+            page.wait_for_timeout(1000)
+
+    # Some catalogues open registered vehicles instead of passing search.
+    page.goto(origin.rstrip('/') + '/#/anpr/vehicleSearch',
+              wait_until='domcontentloaded', timeout=60000)
+    wait_hikcentral_idle(page)
+    dismiss_hikcentral_overlays(page)
+    ui_text(page, 'root').first.wait_for(timeout=30000)
 
 
 def select_all_anpr_cameras(page, row, attempts=16):

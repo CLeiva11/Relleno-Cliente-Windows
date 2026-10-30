@@ -8,7 +8,8 @@ from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
                                 ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
                                 date_range_contains_day, dismiss_hikcentral_overlays,
-                                preferred_anpr_module, select_all_anpr_cameras)
+                                preferred_anpr_module, select_all_anpr_cameras,
+                                wait_hikcentral_idle)
 from relleno.anpr_schedule import Scheduler
 
 
@@ -55,12 +56,21 @@ class ExportTests(unittest.TestCase):
         module, search, root = Mock(), Mock(), Mock()
         module.count.return_value = 1
         search.first.wait_for.side_effect = TimeoutError('catalogue has no passing search')
-        root.first.wait_for.side_effect = [TimeoutError('no camera tree'), None]
+        root.first.wait_for.side_effect = [TimeoutError('no camera tree')] * 3 + [None]
         ui.side_effect = lambda page, key: {'module':module, 'search_view':search, 'root':root}[key]
         open_anpr_search(page, 'https://localhost')
         page.goto.assert_called_once_with('https://localhost/#/anpr/vehicleSearch',
                                          wait_until='domcontentloaded', timeout=60000)
-        self.assertEqual(root.first.wait_for.call_count, 2)
+        self.assertEqual(root.first.wait_for.call_count, 4)
+        self.assertEqual(module.first.click.call_count, 3)
+
+    def test_dashboard_loading_mask_is_allowed_to_finish(self):
+        page = Mock()
+        loading = page.get_by_text.return_value.filter.return_value
+
+        wait_hikcentral_idle(page)
+
+        loading.first.wait_for.assert_called_once_with(state='hidden', timeout=15000)
 
     @patch('relleno.hcp_export.visible_text')
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
