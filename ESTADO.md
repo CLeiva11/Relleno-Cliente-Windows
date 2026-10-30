@@ -1,4 +1,7 @@
-# Entrega 0.4.33
+# Entrega 0.4.34
+
+Las actualizaciones silenciosas vuelven a abrir la ventana al terminar y reinician
+el agente en segundo plano sin dejar al instalador esperando su cierre.
 
 HikCentral queda administrado automáticamente: no muestra campos de URL, usuario ni
 contraseña. Usa el Web Client local, actualiza su huella de certificado y prueba en
@@ -61,7 +64,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.33.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.34.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 
 Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre

@@ -1,12 +1,12 @@
 [Setup]
 AppId={{E91A903A-1ACD-45D4-B1EA-EC4DDC3EAAD2}
 AppName=Relleno Cliente
-AppVersion=0.4.33
+AppVersion=0.4.34
 DefaultDirName={localappdata}\Programs\RellenoCliente
 DefaultGroupName=Relleno Cliente
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=RellenoCliente-Setup-0.4.33
+OutputBaseFilename=RellenoCliente-Setup-0.4.34
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -29,7 +29,8 @@ Name: "{group}\Relleno Cliente"; Filename: "{app}\RellenoCliente.exe"
 Name: "{userdesktop}\Relleno Cliente"; Filename: "{app}\RellenoCliente.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\RellenoCliente.exe"; Parameters: "--resume-agent"; Flags: runhidden waituntilterminated
+Filename: "{app}\RellenoCliente.exe"; Parameters: "--resume-agent"; Flags: runhidden nowait
+Filename: "{app}\RellenoCliente.exe"; Flags: nowait; Check: WizardSilent
 Filename: "{app}\RellenoCliente.exe"; Description: "Configurar centro y cámaras"; Flags: nowait postinstall skipifsilent
 
 [Code]
