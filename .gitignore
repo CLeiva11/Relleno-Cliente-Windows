@@ -12,3 +12,4 @@ config.json
 .inno-setup.exe
 .automation-deps/
 dist/
+relleno/_managed_hikcentral.py

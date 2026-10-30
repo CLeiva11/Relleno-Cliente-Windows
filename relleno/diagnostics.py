@@ -49,9 +49,11 @@ def run_hikcentral(config, day):
     """Run the real HikCentral path without uploading ANPR, then package safe evidence."""
     from datetime import date
     from relleno.hcp_export import download
-    from relleno.hikcentral import check
+    from relleno.hikcentral import check, read_certificate_fingerprint
+    from relleno.managed_hikcentral import apply as apply_managed_hikcentral
+    from relleno.managed_hikcentral import credentials as managed_credentials
     from relleno.portal import CLIENT_VERSION
-    from relleno.storage import read_secret
+    from relleno.storage import save
 
     selected_day = date.fromisoformat(str(day))
     run = ROOT / 'diagnostics' / ('remote-' + uuid.uuid4().hex[:12])
@@ -60,10 +62,13 @@ def run_hikcentral(config, day):
     message = 'Diagnóstico HikCentral completado.'
     evidence = {}
     try:
-        settings = config.get('hikcentral') or {}
-        credentials = read_secret('hikcentral')
-        if not settings.get('url') or not credentials or credentials.get('method') != 'username':
-            raise ValueError('HikCentral no tiene dirección y credenciales configuradas.')
+        apply_managed_hikcentral(config)
+        settings = config['hikcentral']
+        credentials = managed_credentials()
+        fingerprint = read_certificate_fingerprint(settings['url'])
+        if settings.get('certificate_sha256') != fingerprint:
+            settings['certificate_sha256'] = fingerprint
+            save(config)
         check(settings)
         source, evidence = download(config, selected_day, credentials, run, diagnostic_folder=run)
         source.unlink(missing_ok=True)

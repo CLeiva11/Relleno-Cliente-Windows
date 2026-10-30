@@ -26,6 +26,8 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Build executable and installer
         shell: powershell
+        env:
+          RELLENO_HIKCENTRAL_PASSWORDS: ${{ secrets.RELLENO_HIKCENTRAL_PASSWORDS }}
         run: ./build.ps1
       - name: Create checksum
         shell: powershell

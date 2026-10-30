@@ -1,4 +1,9 @@
-# Entrega 0.4.32
+# Entrega 0.4.33
+
+HikCentral queda administrado automáticamente: no muestra campos de URL, usuario ni
+contraseña. Usa el Web Client local, actualiza su huella de certificado y prueba en
+orden las claves incluidas fuera de Git durante la compilación. Solo reintenta con la
+segunda clave cuando HikCentral rechaza la autenticación.
 
 Inicio incorpora **Buscar actualización** junto al estado del portal. Informa la
 versión instalada, consulta el canal autenticado y, previa confirmación, descarga,
@@ -29,7 +34,7 @@ manuales, programadas y órdenes remotas. El portal debe conservar y mostrar los
 metadatos de calidad para distinguirlos en su interfaz; el cliente no puede
 asegurar ese comportamiento del servidor. La corrección sigue siendo manual.
 No se enviaron ceros a cámaras reales durante las pruebas de esta entrega.
-89 pruebas automatizadas aprobadas.
+92 pruebas automatizadas aprobadas.
 
 
 ANPR conserva siempre el Excel original descargado desde HikCentral, tanto en
@@ -56,7 +61,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.32.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.33.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 
 Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre
@@ -72,17 +77,13 @@ En Cámaras, importe cuatro columnas (Nombre, Nivel, Grupo, IP), guarde credenci
 compartidas y pulse Probar cámaras. Se detectan ID estable, modelo, firmware y región.
 Puede agregar/editar o quitar cámaras; cada una admite credenciales propias.
 Nivel y grupo se conservan separados de la región de conteo detectada.
-En HikCentral, configure dirección y autenticación y use **Guardar y comprobar**.
-Los certificados privados de HikCentral y cámaras se fijan automáticamente por
-huella cuando la dirección pertenece a la red local.
-Las direcciones sin protocolo se completan con HTTPS. La prueba web no autentica
-al usuario. La exportación se valida desde ANPR. La huella confirmada solo autoriza
-el certificado de ese HikCentral; no desactiva TLS del portal de Relleno.
+HikCentral no es configurable desde la aplicación. El cliente usa exclusivamente
+el Web Client local y fija automáticamente su certificado antes de exportar ANPR.
+Esto no desactiva TLS del portal de Relleno.
 
-Los secretos se guardan exclusivamente en Windows Credential Manager con prefijo
-`RellenoCliente/`. Cargue AppKey/SecretKey allí si la API disponible las requiere;
-no las envíe por chat ni a Git. Dejar campos secretos vacíos conserva credenciales.
-La configuración sin secretos está en `%LOCALAPPDATA%/RellenoCliente/config.json`.
+Los tokens y secretos de cámaras se guardan en Windows Credential Manager con prefijo
+`RellenoCliente/`. Las claves administradas de HikCentral se inyectan al compilar y
+nunca se escriben en `config.json` ni se guardan en Git.
 
 En Conteos seleccione un día terminado y consulte todas las cámaras. El adaptador
 de DS-2CD6825 se basa en la consulta ISAPI usada por el portal web y se validó con

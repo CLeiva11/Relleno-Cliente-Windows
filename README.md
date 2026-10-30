@@ -14,10 +14,10 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
-## Versión 0.4.32
+## Versión 0.4.33
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El instalador es `RellenoCliente-Setup-0.4.32.exe`. Consulte
+El instalador es `RellenoCliente-Setup-0.4.33.exe`. Consulte
 [ESTADO.md](ESTADO.md) para el estado de los artefactos de esta entrega. Incluye extracción ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de
@@ -26,8 +26,8 @@ La extracción manual de ANPR y Personas admite rangos de hasta 31 días termina
 Consulte [ESTADO.md](ESTADO.md) para uso, compilación y limitaciones.
 
 El mismo instalador se puede copiar e instalar en otros equipos y centros.
-Cada equipo se vincula con su propio código de Comprobaciones y configura su
-HikCentral. El instalador no incluye el vínculo, inventario, credenciales ni
+Cada equipo se vincula con su propio código de Comprobaciones. HikCentral usa una
+configuración local administrada incluida durante la compilación. El instalador no incluye el vínculo, inventario ni
 archivos del centro piloto. Consulte [INSTALACION.md](INSTALACION.md).
 
 `dist/` permanece excluido de Git: el código fuente se versiona en el repositorio

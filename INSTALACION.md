@@ -1,6 +1,6 @@
 # Instalación en un centro
 
-1. Descargue `RellenoCliente-Setup-0.4.32.exe` desde
+1. Descargue `RellenoCliente-Setup-0.4.33.exe` desde
    [Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
    También puede copiar ese mismo archivo por USB o por el canal de distribución
    del equipo. Si el repositorio es privado, GitHub exige acceso para descargarlo.
@@ -9,9 +9,8 @@
 3. En una actualización, el vínculo existente se conserva. Para una instalación
    nueva, el vínculo debe ser provisionado por administración; el portal operativo
    no expone generación de códigos a usuarios.
-4. En HikCentral indique la dirección del servidor, usuario y contraseña con permisos
-   para buscar y exportar ANPR. `localhost` se refiere al equipo donde instala el
-   cliente; solo sirve si HikCentral está en ese mismo equipo.
+4. HikCentral no requiere configuración: el cliente usa automáticamente el Web Client
+   local y prueba las credenciales administradas incluidas en el instalador.
 5. En ANPR elija un día terminado y pulse **Exportar de HikCentral y enviar**.
    Compruebe que aparece **Recibido** y un comprobante del portal.
 6. Active la exportación diaria y guarde la configuración. Se procesan los días
@@ -39,11 +38,11 @@ Actualmente no hay un cambio de centro desde la interfaz; un traslado físico de
 un equipo ya vinculado requiere gestionar el vínculo anterior y preparar un perfil
 limpio antes de usar el código del nuevo centro.
 
-Las credenciales y el token se guardan en Windows Credential Manager. Configuración,
+El token y las credenciales de cámaras se guardan en Windows Credential Manager. Configuración,
 fuentes y cola permanecen en `%LOCALAPPDATA%/RellenoCliente`, fuera del repositorio
 y del instalador. Los certificados privados o autofirmados de direcciones locales
-se detectan al probar la configuración y quedan fijados por su huella SHA-256.
-La confianza se invalida al cambiar la dirección configurada.
+se detectan al conectar y quedan fijados por su huella SHA-256. HikCentral queda
+restringido al servicio local del mismo equipo.
 
 La exportación web se validó en el piloto; otra versión o idioma de HikCentral
 puede requerir ajustar el adaptador. No se necesitan AppKey/SecretKey para este

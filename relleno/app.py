@@ -17,12 +17,15 @@ from relleno.cameras import probe, parse_inventory, extract_day, CameraError
 from relleno.anpr import Outbox, AnprError
 from relleno.hcp_export import ExportError
 from relleno.date_ranges import completed_days
+from relleno.managed_hikcentral import apply as apply_managed_hikcentral
 
 
 class App:
     def __init__(self, root):
         self.root = root
         self.config = load()
+        if apply_managed_hikcentral(self.config):
+            save(self.config)
         if not self.config.get('binding'):
             recovery = read_secret('portal-recovery')
             if recovery:
@@ -36,7 +39,7 @@ class App:
         self.status_text = tk.StringVar(value='Listo')
         tabs = ttk.Notebook(root)
         tabs.pack(fill='both', expand=True, padx=14, pady=14)
-        for name, builder in [('Inicio', self.home), ('ANPR', self.anpr), ('Cámaras', self.cameras), ('Conteos', self.counts), ('HikCentral', self.hikcentral)]:
+        for name, builder in [('Inicio', self.home), ('ANPR', self.anpr), ('Cámaras', self.cameras), ('Conteos', self.counts)]:
             frame = ttk.Frame(tabs, padding=14)
             tabs.add(frame, text=name)
             builder(frame)
@@ -132,7 +135,7 @@ class App:
                 messagebox.showinfo('Centro vinculado', 'Listo. El centro quedó fijado y el token se guardó en Windows.')
             self.background('Vinculando con el portal…', lambda: link(value, socket.gethostname()), done)
         ttk.Button(self.link_box, text='Vincular', command=start).pack(anchor='w', pady=8)
-        ttk.Label(frame, text='2. Configure cámaras e HikCentral.\n3. El servicio enviará el estado y atenderá la programación y las solicitudes del portal.', wraplength=950).pack(anchor='w', pady=12)
+        ttk.Label(frame, text='2. Configure las cámaras de Personas. HikCentral se conecta automáticamente en este equipo.\n3. El servicio enviará el estado y atenderá la programación y las solicitudes del portal.', wraplength=950).pack(anchor='w', pady=12)
         self.portal_status = ttk.Label(frame, text='Portal: sin comprobar', wraplength=950)
         self.portal_status.pack(anchor='w', pady=(0, 8))
         def test_portal():
@@ -586,50 +589,6 @@ class App:
             text='Guardar programación de Personas',
             command=lambda: self.guarded(persist_people_schedule),
         ).pack(anchor='w', pady=5)
-
-    def hikcentral(self, frame):
-        from relleno.hikcentral import normalize_url, check, read_certificate_fingerprint, is_local_url
-        current = self.config.get('hikcentral', {})
-        url = self.field(frame, 'Dirección web real del servidor HikCentral (URL con puerto)', current.get('url', ''))
-        method = self.field(frame, 'Autenticación', current.get('method', 'username'), choices=('username', 'appkey'))
-        account = self.field(frame, 'Usuario o AppKey', secret=True)
-        secret = self.field(frame, 'Contraseña o SecretKey', secret=True)
-        status = ttk.Label(frame, text=current.get('connection_status', 'Sin comprobar'), wraplength=950)
-        status.pack(anchor='w', pady=10)
-        ttk.Label(frame, text='Use la misma dirección que abre el portal web de HikCentral en el navegador; puede ser 127.0.0.1 cuando el Web Client está instalado en este PC.\nCredenciales guardadas en Windows. Los campos vacíos conservan las existentes.', wraplength=950).pack(anchor='w', pady=12)
-        def persist_and_test():
-            value = normalize_url(url.get())
-            if account.get() or secret.get():
-                if not account.get() or not secret.get():
-                    raise ValueError('Ingrese ambas partes de la credencial.')
-                store_secret('hikcentral', {'method': method.get(), 'account': account.get(), 'secret': secret.get()})
-            previous = self.config.get('hikcentral', {})
-            settings = previous | {'url': value, 'method': method.get()}
-            if previous.get('url') != value:
-                settings.pop('certificate_sha256', None)
-            settings['connection_status'] = 'Comprobando conexión…'
-            self.config['hikcentral'] = settings
-            save(self.config)
-            status.config(text=settings['connection_status'])
-            account.set('')
-            secret.set('')
-            def work():
-                if value.startswith('https://') and is_local_url(value):
-                    settings['certificate_sha256'] = read_certificate_fingerprint(value)
-                    self.config['hikcentral'] = settings
-                    save(self.config)
-                return check(settings)
-            def done(message):
-                settings['connection_status'] = message
-                self.config['hikcentral'] = settings
-                save(self.config)
-                status.config(text=message)
-            self.background('Guardando y comprobando HikCentral…', work, done)
-        ttk.Button(
-            frame, text='Guardar y comprobar', command=lambda: self.guarded(persist_and_test)
-        ).pack(anchor='w', pady=8)
-        ttk.Label(frame, text='Las siete cámaras de conteo se consultan directamente; no requieren AppKey de HikCentral.\nPara ANPR se conservarán los XLS/XLSX/XLSM originales; no se generarán a partir de los conteos.', wraplength=950).pack(anchor='w', pady=12)
-
 
 def main():
     root = tk.Tk()

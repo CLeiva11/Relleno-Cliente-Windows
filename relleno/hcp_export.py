@@ -10,8 +10,14 @@ import traceback
 from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
-from relleno.storage import ROOT, read_secret
-from relleno.hikcentral import check, normalize_url
+from relleno.storage import ROOT, save
+from relleno.hikcentral import check, normalize_url, read_certificate_fingerprint
+from relleno.managed_hikcentral import apply as apply_managed_hikcentral
+from relleno.managed_hikcentral import credential_options, credentials as managed_credentials
+
+# Alias conservado para pruebas y extensiones antiguas; en producción resuelve
+# exclusivamente las credenciales incluidas en el instalador.
+read_secret = managed_credentials
 from relleno.anpr import Outbox, file_hash
 
 
@@ -39,6 +45,7 @@ ANPR_COUNT_RESPONSE = re.compile(
 
 
 def export_key(config, day):
+    apply_managed_hikcentral(config)
     return hashlib.sha256(json.dumps([str(config['binding']['centre_id']), config['hikcentral']['url'], day.isoformat()], separators=(',', ':')).encode()).hexdigest()[:16]
 
 
@@ -50,10 +57,17 @@ def export_day(config, day):
         raise ExportError('Seleccione un día terminado para ANPR.')
     if not config.get('binding'):
         raise ExportError('Vincule primero este equipo al centro.')
-    settings = config.get('hikcentral', {})
-    credentials = read_secret('hikcentral')
-    if not credentials or credentials.get('method') != 'username':
-        raise ExportError('Guarde el usuario y la contraseña de HikCentral para usar su exportación web.')
+    apply_managed_hikcentral(config)
+    settings = config['hikcentral']
+    credentials = read_secret()
+    if credentials.get('secrets'):
+        try:
+            fingerprint = read_certificate_fingerprint(settings['url'])
+        except ValueError as exc:
+            raise ExportError(str(exc)) from None
+        if settings.get('certificate_sha256') != fingerprint:
+            settings['certificate_sha256'] = fingerprint
+            save(config)
     folder = ROOT / 'exports' / export_key(config, day)
     folder.mkdir(parents=True, exist_ok=True)
     manifest = folder / 'manifest.json'
@@ -464,22 +478,29 @@ def diagnostic_checkpoint(progress, stage):
 
 
 def download(config, day, credentials, folder, diagnostic_folder=None):
-    progress = {
-        'message': 'No se pudo iniciar Microsoft Edge para abrir HikCentral.',
-        'diagnostic_mode': diagnostic_folder is not None,
-        'diagnostic_folder': str(diagnostic_folder) if diagnostic_folder else None,
-    }
-    try:
-        return _download(config, day, credentials, folder, progress)
-    except ExportError as exc:
-        diagnostic = save_web_diagnostic(progress, exc)
-        suffix = ' Use Exportar diagnóstico en la pestaña Cámaras.' if diagnostic else ''
-        raise ExportError(str(exc) + suffix) from None
-    except Exception as exc:
-        # Browser exceptions may contain selectors, page content or entered values.
-        diagnostic = save_web_diagnostic(progress, exc)
-        suffix = ' Use Exportar diagnóstico en la pestaña Cámaras.' if diagnostic else ''
-        raise ExportError(progress['message'] + suffix) from None
+    options = credential_options(credentials)
+    if not options:
+        raise ExportError('La instalación no contiene credenciales de HikCentral.')
+    for index, option in enumerate(options):
+        progress = {
+            'message': 'No se pudo iniciar Microsoft Edge para abrir HikCentral.',
+            'diagnostic_mode': diagnostic_folder is not None,
+            'diagnostic_folder': str(diagnostic_folder) if diagnostic_folder else None,
+        }
+        try:
+            return _download(config, day, option, folder, progress)
+        except ExportError as exc:
+            auth_failure = str(exc).startswith('HikCentral no aceptó el inicio de sesión')
+            if auth_failure and index + 1 < len(options):
+                continue
+            diagnostic = save_web_diagnostic(progress, exc)
+            suffix = ' Use Exportar diagnóstico en la pestaña Cámaras.' if diagnostic else ''
+            raise ExportError(str(exc) + suffix) from None
+        except Exception as exc:
+            # Browser exceptions may contain selectors, page content or entered values.
+            diagnostic = save_web_diagnostic(progress, exc)
+            suffix = ' Use Exportar diagnóstico en la pestaña Cámaras.' if diagnostic else ''
+            raise ExportError(progress['message'] + suffix) from None
 
 
 def _download(config, day, credentials, folder, progress):

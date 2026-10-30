@@ -3,6 +3,7 @@ from relleno.cameras import extract_day, probe, CameraConnectionError, estimated
 from relleno.people import send_batch
 from relleno.portal import CLIENT_VERSION, agent_post, upload_diagnostic
 from relleno.storage import read_secret, save
+from relleno.managed_hikcentral import apply as apply_managed_hikcentral
 
 
 def capabilities(config):
@@ -13,9 +14,8 @@ def capabilities(config):
         for camera in config.get('cameras', [])
     ):
         result.append('personas')
-    hikcentral = config.get('hikcentral') or {}
-    credentials = read_secret('hikcentral')
-    if hikcentral.get('url') and credentials and credentials.get('method') == 'username':
+    apply_managed_hikcentral(config)
+    if (config.get('hikcentral') or {}).get('url'):
         result.append('vehiculos')
         result.append('diagnostico')
     return result

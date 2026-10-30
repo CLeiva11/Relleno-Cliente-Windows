@@ -28,6 +28,9 @@ Entradas y Salidas por cámara e intervalo.
 - El cliente extrae y envía; nunca compara ni corrige bases de datos.
 - No agregar Django, scripts de relleno ni conexiones MySQL.
 - No guardar IP privadas, usuarios, contraseñas, tokens o códigos reales en Git.
+  HikCentral es una configuración administrada: el código fija loopback y el usuario,
+  mientras las claves se inyectan en `_managed_hikcentral.py` durante el build y ese
+  archivo permanece ignorado por Git.
 - Guardar secretos con Windows Credential Manager, por ejemplo mediante `keyring`.
 - Nunca enviar credenciales de cámaras o HikCentral al portal.
 - Mantener datos separados por cámara, dirección e intervalo. La región comercial
@@ -154,12 +157,12 @@ Solicitar por centro:
 - Tipo por cámara: `people_counter`, `rf_counter` o `anpr`.
 - Modelo y firmware de cada cámara de Personas.
 - Forma actual de consultar el conteo en su portal web.
-- URL, puerto y versión de HikCentral para ANPR.
-- Método de autenticación y permisos disponibles.
+- Versión de HikCentral para ANPR. La URL y la cuenta no son configurables.
+- Permisos disponibles para la cuenta administrada.
 - Un archivo ANPR real en español y otro en inglés cuando corresponda.
 
-Las contraseñas se entregan fuera de Git y se cargan directamente en el almacén
-seguro durante la instalación.
+Las claves administradas de HikCentral se entregan fuera de Git al proceso de build.
+Las credenciales de cámaras se cargan directamente en el almacén seguro.
 
 ## Arquitectura esperada
 
