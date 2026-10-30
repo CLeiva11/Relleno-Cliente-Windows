@@ -9,6 +9,8 @@ class InstallerTests(unittest.TestCase):
         self.assertIn('Parameters: "--resume-agent"; Flags: runhidden nowait', script)
         self.assertIn('Filename: "{app}\\RellenoCliente.exe"; Flags: nowait; Check: WizardSilent', script)
         self.assertNotIn("waituntilterminated", script)
+        self.assertIn("'/F /IM RellenoCliente.exe'", script)
+        self.assertNotIn("'/F /T /IM RellenoCliente.exe'", script)
 
 
 if __name__ == "__main__":

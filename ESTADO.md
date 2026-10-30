@@ -1,4 +1,8 @@
-# Entrega 0.4.34
+# Entrega 0.4.35
+
+El instalador ya no termina su propio proceso al cerrar la versión anterior. Las
+actualizaciones muestran una ventana de progreso y guardan `updates/installer.log`
+para diagnosticar cualquier instalación incompleta.
 
 Las actualizaciones silenciosas vuelven a abrir la ventana al terminar y reinician
 el agente en segundo plano sin dejar al instalador esperando su cierre.
@@ -64,7 +68,7 @@ de la tienda de aplicaciones y verifica la selección completa antes de consulta
 ANPR y Conteos permiten enviar un rango inclusivo de hasta 31 días terminados;
 cada cámara y fecha conserva su recepción independiente en Comprobaciones.
 
-Ejecute `dist/RellenoCliente-Setup-0.4.34.exe` en Windows x64 con su usuario habitual.
+Ejecute `dist/RellenoCliente-Setup-0.4.35.exe` en Windows x64 con su usuario habitual.
 El instalador conserva el perfil local y el vínculo existente.
 
 Comprobaciones puede solicitar un diagnóstico remoto de HikCentral. Este recorre

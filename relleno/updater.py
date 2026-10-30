@@ -78,9 +78,13 @@ def download(binding, metadata):
 
 
 def launch(installer):
-    """Start the verified installer; Inno Setup closes and resumes the agent."""
+    """Start verified Setup with visible progress and a local diagnostic log."""
+    log_path = ROOT / 'updates' / 'installer.log'
     return subprocess.Popen(
-        [str(installer), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS'],
+        [
+            str(installer), '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
+            '/CLOSEAPPLICATIONS', '/LOG=' + str(log_path),
+        ],
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         close_fds=True,
     )

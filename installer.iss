@@ -1,12 +1,12 @@
 [Setup]
 AppId={{E91A903A-1ACD-45D4-B1EA-EC4DDC3EAAD2}
 AppName=Relleno Cliente
-AppVersion=0.4.34
+AppVersion=0.4.35
 DefaultDirName={localappdata}\Programs\RellenoCliente
 DefaultGroupName=Relleno Cliente
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=RellenoCliente-Setup-0.4.34
+OutputBaseFilename=RellenoCliente-Setup-0.4.35
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -40,7 +40,8 @@ procedure StopRellenoCliente();
 var
   ResultCode: Integer;
 begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM RellenoCliente.exe', '',
+  // No usar /T: Setup fue iniciado por RellenoCliente y es parte de ese arbol.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM RellenoCliente.exe', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1500);
 end;
