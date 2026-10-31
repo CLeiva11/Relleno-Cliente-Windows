@@ -8,10 +8,11 @@ import uuid
 import zipfile
 
 from relleno.storage import ROOT, load
+from relleno.platform_support import desktop_path
 
 
 def export(destination=None):
-    destination = Path(destination or Path.home() / 'Desktop')
+    destination = Path(destination or desktop_path())
     destination.mkdir(parents=True, exist_ok=True)
     target = destination / f'RellenoCliente-diagnostico-{datetime.now():%Y%m%d-%H%M%S}.zip'
     config = load()

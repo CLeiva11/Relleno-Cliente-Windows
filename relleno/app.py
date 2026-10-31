@@ -18,6 +18,7 @@ from relleno.anpr import Outbox, AnprError
 from relleno.hcp_export import ExportError
 from relleno.date_ranges import completed_days
 from relleno.managed_hikcentral import apply as apply_managed_hikcentral
+from relleno.platform_support import IS_WINDOWS, open_path
 
 
 class App:
@@ -132,7 +133,7 @@ class App:
                 autostart(True)
                 start()
                 self.refresh()
-                messagebox.showinfo('Centro vinculado', 'Listo. El centro quedó fijado y el token se guardó en Windows.')
+                messagebox.showinfo('Centro vinculado', 'Listo. El centro quedó fijado y el token se guardó de forma segura.')
             self.background('Vinculando con el portal…', lambda: link(value, socket.gethostname()), done)
         ttk.Button(self.link_box, text='Vincular', command=start).pack(anchor='w', pady=8)
         ttk.Label(frame, text='2. Configure las cámaras de Personas. HikCentral se conecta automáticamente en este equipo.\n3. El servicio enviará el estado y atenderá la programación y las solicitudes del portal.', wraplength=950).pack(anchor='w', pady=12)
@@ -198,7 +199,7 @@ class App:
             save(self.config)
             self.status_text.set('Zona horaria guardada')
         ttk.Button(advanced, text='Guardar zona horaria', command=lambda: self.guarded(settings)).pack(anchor='w', pady=8)
-        ttk.Button(frame, text='Abrir datos locales', command=lambda: os.startfile(str(ROOT))).pack(anchor='w', pady=14)
+        ttk.Button(frame, text='Abrir datos locales', command=lambda: open_path(ROOT)).pack(anchor='w', pady=14)
 
     def refresh(self):
         binding = self.config.get('binding')
@@ -290,7 +291,7 @@ class App:
                     self.anpr_detail.config(text=row['message'])
         self.anpr_table.bind('<<TreeviewSelect>>', detail)
         settings = self.config.get('anpr', {})
-        automatic = ttk.LabelFrame(frame, text='Envío automático al iniciar Windows', padding=10)
+        automatic = ttk.LabelFrame(frame, text='Envío automático al iniciar sesión', padding=10)
         automatic.pack(fill='x', pady=8)
         daily = tk.BooleanVar(value=settings.get('auto_export_enabled', False))
         ttk.Checkbutton(
@@ -595,7 +596,8 @@ def main():
     try:
         App(root)
     except Exception:
-        messagebox.showerror('No se pudo abrir', 'Revise los permisos de la configuración local y del Administrador de credenciales de Windows.')
+        store = 'Administrador de credenciales de Windows' if IS_WINDOWS else 'KWallet o depósito de claves'
+        messagebox.showerror('No se pudo abrir', f'Revise los permisos de la configuración local y de {store}.')
         root.destroy()
         return
     root.mainloop()

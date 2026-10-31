@@ -18,8 +18,9 @@ if __name__ == '__main__':
         print(export())
     elif '--browser-self-test' in sys.argv:
         from playwright.sync_api import sync_playwright
+        from relleno.platform_support import browser_launch_kwargs
         with sync_playwright() as playwright:
-            with playwright.chromium.launch(channel='msedge', headless=True) as browser:
+            with playwright.chromium.launch(**browser_launch_kwargs(headless=True)) as browser:
                 page = browser.new_page()
                 page.set_content('<title>Relleno</title>')
                 assert page.title() == 'Relleno'

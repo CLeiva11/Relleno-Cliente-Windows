@@ -6,9 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import os
 
 from relleno.storage import ROOT, load
 from relleno.anpr import Outbox, EXTENSIONS, AnprError
+from relleno.platform_support import IS_WINDOWS, detached_process_kwargs, worker_command
 
 
 def logger():
@@ -112,27 +114,38 @@ def run():
 
 
 def autostart(enabled):
-    if not getattr(sys, 'frozen', False):
-        return
-    import winreg
-    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
-        if enabled:
-            winreg.SetValueEx(key, 'RellenoClienteServicio', 0, winreg.REG_SZ, '"' + sys.executable + '" --agent-worker')
-            try:
-                winreg.DeleteValue(key, 'RellenoClienteANPR')
-            except FileNotFoundError:
-                pass
-        else:
-            for name in ('RellenoClienteServicio', 'RellenoClienteANPR'):
+    if IS_WINDOWS:
+        if not getattr(sys, 'frozen', False):
+            return
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
+            if enabled:
+                winreg.SetValueEx(key, 'RellenoClienteServicio', 0, winreg.REG_SZ, '"' + sys.executable + '" --agent-worker')
                 try:
-                    winreg.DeleteValue(key, name)
+                    winreg.DeleteValue(key, 'RellenoClienteANPR')
                 except FileNotFoundError:
                     pass
+            else:
+                for name in ('RellenoClienteServicio', 'RellenoClienteANPR'):
+                    try:
+                        winreg.DeleteValue(key, name)
+                    except FileNotFoundError:
+                        pass
+        return
+
+    folder = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'autostart'
+    target = folder / 'relleno-cliente.desktop'
+    if not enabled:
+        target.unlink(missing_ok=True)
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    command = ' '.join('"' + value.replace('"', '\\"') + '"' for value in worker_command())
+    target.write_text(
+        '[Desktop Entry]\nType=Application\nName=Relleno Cliente Servicio\n'
+        f'Exec={command}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n',
+        encoding='utf-8',
+    )
 
 
 def start():
-    if getattr(sys, 'frozen', False):
-        command = [sys.executable, '--agent-worker']
-    else:
-        command = [sys.executable, str(Path(__file__).resolve().parent.parent / 'main.py'), '--agent-worker']
-    subprocess.Popen(command, creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True)
+    subprocess.Popen(worker_command(), **detached_process_kwargs())

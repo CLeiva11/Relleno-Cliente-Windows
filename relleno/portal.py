@@ -99,7 +99,7 @@ def agent_token(binding):
     from relleno.storage import read_secret
     secret = read_secret('portal/' + str(binding['agent_id']))
     if not secret or not secret.get('token'):
-        raise PortalError('No se encontró el token del equipo en Windows.')
+        raise PortalError('No se encontró el token seguro del equipo.')
     return secret['token']
 
 

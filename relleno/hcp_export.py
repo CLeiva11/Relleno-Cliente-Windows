@@ -14,6 +14,7 @@ from relleno.storage import ROOT, save
 from relleno.hikcentral import check, normalize_url, read_certificate_fingerprint
 from relleno.managed_hikcentral import apply as apply_managed_hikcentral
 from relleno.managed_hikcentral import credential_options, credentials as managed_credentials
+from relleno.platform_support import browser_launch_kwargs
 
 # Alias conservado para pruebas y extensiones antiguas; en producción resuelve
 # exclusivamente las credenciales incluidas en el instalador.
@@ -508,13 +509,14 @@ def _download(config, day, credentials, folder, progress):
     settings = config['hikcentral']
     url = normalize_url(settings['url'])
     with sync_playwright() as playwright:
-        # Use the Windows-installed Edge; never install a second browser.
-        # Edge normal (no headless) con la ventana fuera de pantalla: el login de
+        # Use the browser already installed by the operating system. Normal mode
+        # con la ventana fuera de pantalla: el login de
         # HikCentral se congela en modo headless, igual que en un PC sin GPU.
         visible = edge_visible()
         window = ['--window-position=40,40'] if visible else ['--window-position=-32000,-32000']
         # Sin GPU, el fondo 3D del login de HikCentral puede dejar la página sin responder.
-        with playwright.chromium.launch(channel='msedge', headless=False,
+        launch = browser_launch_kwargs(headless=False)
+        with playwright.chromium.launch(**launch,
                                         args=[*window, '--window-size=1440,1000',
                                               '--disable-3d-apis', '--disable-webgl']) as browser:
             # The certificate pin was verified by check() immediately before opening Edge.

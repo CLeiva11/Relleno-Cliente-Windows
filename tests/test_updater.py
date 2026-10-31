@@ -9,6 +9,7 @@ from relleno.updater import available, download, launch, version_tuple
 
 
 class UpdaterTests(unittest.TestCase):
+    @patch('relleno.updater.IS_WINDOWS', True)
     @patch('relleno.updater.subprocess.Popen')
     def test_verified_installer_can_be_started_from_the_desktop(self, popen):
         installer = Path('RellenoCliente-Setup-0.4.36.exe')
@@ -33,6 +34,7 @@ class UpdaterTests(unittest.TestCase):
         with self.assertRaises(PortalError):
             version_tuple('latest')
 
+    @patch('relleno.updater.IS_WINDOWS', True)
     @patch('relleno.updater.agent_token', return_value='token')
     @patch('relleno.updater.binding_endpoint', return_value='https://portal/update.exe')
     @patch('relleno.updater.requests.get')

@@ -3,10 +3,14 @@ from ctypes import wintypes
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 from zoneinfo import ZoneInfo
 
-ROOT = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'RellenoCliente'
+from relleno.platform_support import IS_WINDOWS, data_root
+
+
+ROOT = data_root()
 
 
 def load():
@@ -51,7 +55,20 @@ class Credential(ctypes.Structure):
 
 
 def store_secret(target, values):
-    """Use Windows Credential Manager; never fall back to a file."""
+    """Use the operating system's secret store; never fall back to a file."""
+    if not IS_WINDOWS:
+        payload = json.dumps(values, ensure_ascii=False)
+        try:
+            result = subprocess.run(
+                ['secret-tool', 'store', '--label=Relleno Cliente',
+                 'service', 'RellenoCliente', 'target', target],
+                input=payload, text=True, capture_output=True, timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise OSError('No se pudo acceder al almacén seguro de Manjaro.') from None
+        if result.returncode:
+            raise OSError('Desbloquee KWallet o el depósito de claves para guardar la credencial.')
+        return
     blob = json.dumps(values, ensure_ascii=False).encode('utf-16-le')
     if len(blob) > 2560:
         raise ValueError('Credencial demasiado larga.')
@@ -67,6 +84,20 @@ def store_secret(target, values):
 
 
 def read_secret(target):
+    if not IS_WINDOWS:
+        try:
+            result = subprocess.run(
+                ['secret-tool', 'lookup', 'service', 'RellenoCliente', 'target', target],
+                text=True, capture_output=True, timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise OSError('No se pudo acceder al almacén seguro de Manjaro.') from None
+        if result.returncode or not result.stdout.strip():
+            return None
+        try:
+            return json.loads(result.stdout)
+        except ValueError:
+            raise OSError('La credencial segura local no tiene un formato válido.') from None
     api = ctypes.WinDLL('Advapi32', use_last_error=True)
     pointer = ctypes.POINTER(Credential)()
     api.CredReadW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,

@@ -140,7 +140,7 @@ class Outbox:
             raise AnprError('Vincule primero este equipo con el centro.')
         secret = read_secret('portal/' + str(binding['agent_id']))
         if not secret or not secret.get('token'):
-            raise AnprError('No se encontró el token del equipo en Windows.')
+            raise AnprError('No se encontró el token seguro del equipo.')
         url = endpoint(BASE, binding['upload_url'])
         if url == binding.get('people_count_url'):
             raise AnprError('El destino ANPR no puede ser el de Personas.')

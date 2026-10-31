@@ -14,6 +14,14 @@ credenciales. La comparación y la corrección se ejecutan en el portal.
 
 El agente que continúe el desarrollo debe leer primero [AGENTS.md](AGENTS.md).
 
+## Versión Manjaro
+
+El cliente también puede compilarse e instalarse en Manjaro sin cambiar el
+contrato del portal. Usa Chromium del sistema, Secret Service/KWallet, rutas XDG
+y autoinicio de la sesión. HikCentral sigue fijo en `https://127.0.0.1` y conserva
+las mismas credenciales administradas. Consulte
+[INSTALACION_MANJARO.md](INSTALACION_MANJARO.md).
+
 ## Versión 0.4.36
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
