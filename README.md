@@ -22,6 +22,12 @@ y autoinicio de la sesión. HikCentral sigue fijo en `https://127.0.0.1` y conse
 las mismas credenciales administradas. Consulte
 [INSTALACION_MANJARO.md](INSTALACION_MANJARO.md).
 
+La versión publicada se instala con un solo comando:
+
+```bash
+curl -fsSL https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/download/manjaro-v0.4.36/install-release-manjaro.sh | bash
+```
+
 ## Versión 0.4.36
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).

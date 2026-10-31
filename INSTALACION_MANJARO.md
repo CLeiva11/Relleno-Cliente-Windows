@@ -16,6 +16,14 @@ escriben en `config.json`.
 
 ## Instalar un paquete publicado
 
+Instalación automática, incluidas las dependencias necesarias:
+
+```bash
+curl -fsSL https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/download/manjaro-v0.4.36/install-release-manjaro.sh | bash
+```
+
+Alternativamente, puede instalar el archivo descargado manualmente:
+
 ```bash
 tar -xzf RellenoCliente-Manjaro-0.4.36.tar.gz
 ./install-manjaro.sh

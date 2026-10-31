@@ -1,0 +1,60 @@
+name: Manjaro release
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "manjaro-v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libtk8.6
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Build Manjaro package
+        env:
+          RELLENO_HIKCENTRAL_PASSWORDS: ${{ secrets.RELLENO_HIKCENTRAL_PASSWORDS }}
+        run: ./build-manjaro.sh
+      - name: Create checksum
+        run: |
+          file="$(find dist -maxdepth 1 -name 'RellenoCliente-Manjaro-*.tar.gz' -print -quit)"
+          test -n "$file"
+          (cd dist && sha256sum "$(basename "$file")" > SHA256SUMS-Manjaro.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RellenoCliente-Manjaro
+          path: |
+            dist/RellenoCliente-Manjaro-*.tar.gz
+            dist/SHA256SUMS-Manjaro.txt
+          if-no-files-found: error
+      - name: Publish tagged Manjaro installer
+        if: startsWith(github.ref, 'refs/tags/manjaro-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Relleno Cliente Manjaro ${{ github.ref_name }}
+          make_latest: false
+          body: |
+            Instalador independiente para Manjaro/Arch Linux.
+
+            Instalación:
+            ```bash
+            curl -fsSL https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/download/${{ github.ref_name }}/install-release-manjaro.sh | bash
+            ```
+          files: |
+            dist/RellenoCliente-Manjaro-*.tar.gz
+            dist/SHA256SUMS-Manjaro.txt
+            install-release-manjaro.sh
