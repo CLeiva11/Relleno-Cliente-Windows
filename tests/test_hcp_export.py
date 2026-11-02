@@ -65,7 +65,7 @@ class ExportTests(unittest.TestCase):
     @patch('relleno.hcp_export.visible_text')
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
     @patch('relleno.hcp_export.ui_text')
-    def test_registered_vehicle_catalogue_falls_back_to_anpr_search(self, ui, dismiss, visible):
+    def test_unknown_vehicle_layout_is_not_forced_to_obsolete_route(self, ui, dismiss, visible):
         from relleno.hcp_export import open_anpr_search
         page = Mock()
         page.locator.return_value.filter.return_value.count.return_value = 0
@@ -73,12 +73,12 @@ class ExportTests(unittest.TestCase):
         module, search, root = Mock(), Mock(), Mock()
         module.count.return_value = 1
         search.first.wait_for.side_effect = TimeoutError('catalogue has no passing search')
-        root.first.wait_for.side_effect = [TimeoutError('no camera tree')] * 3 + [None]
+        root.first.wait_for.side_effect = [TimeoutError('no camera tree')] * 3
         ui.side_effect = lambda page, key: {'module':module, 'search_view':search, 'root':root}[key]
-        open_anpr_search(page, 'https://localhost')
-        page.goto.assert_called_once_with('https://localhost/#/anpr/vehicleSearch',
-                                         wait_until='domcontentloaded', timeout=60000)
-        self.assertEqual(root.first.wait_for.call_count, 4)
+        with self.assertRaisesRegex(ExportError, 'sin forzar una ruta incompatible'):
+            open_anpr_search(page, 'https://localhost')
+        page.goto.assert_not_called()
+        self.assertEqual(root.first.wait_for.call_count, 3)
         self.assertEqual(module.first.click.call_count, 3)
 
     def test_dashboard_loading_mask_is_allowed_to_finish(self):

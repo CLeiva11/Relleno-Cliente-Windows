@@ -254,7 +254,7 @@ def wait_hikcentral_idle(page, timeout=15000):
         pass
 
 
-def open_anpr_search(page, origin):
+def open_anpr_search(page, origin, progress=None):
     """Open vehicle-passing search across legacy and application-registry layouts."""
     root = ui_text(page, 'root')
     for _attempt in range(3):
@@ -271,30 +271,33 @@ def open_anpr_search(page, origin):
             target = clickable_anpr_module(module)
             target.wait_for(timeout=15000)
             target.click(force=True)
+            page.wait_for_timeout(2500)
             wait_hikcentral_idle(page)
             dismiss_hikcentral_overlays(page)
+            if progress is not None:
+                diagnostic_checkpoint(progress, f'vehiculo-abierto-{_attempt + 1}')
         else:
             # Legacy installations expose ANPR directly in their main navigation.
             ui_text(page, 'module').first.click(force=True)
 
         search = ui_text(page, 'search_view')
         try:
-            search.first.wait_for(timeout=5000)
+            search.first.wait_for(timeout=15000)
             search.first.click(force=True)
+            page.wait_for_timeout(1500)
+            wait_hikcentral_idle(page)
         except Exception:
             pass
         try:
-            root.first.wait_for(timeout=10000)
+            root.first.wait_for(timeout=20000)
             return
         except Exception:
             page.wait_for_timeout(1000)
 
-    # Some catalogues open registered vehicles instead of passing search.
-    page.goto(origin.rstrip('/') + '/#/anpr/vehicleSearch',
-              wait_until='domcontentloaded', timeout=60000)
-    wait_hikcentral_idle(page)
-    dismiss_hikcentral_overlays(page)
-    ui_text(page, 'root').first.wait_for(timeout=30000)
+    raise ExportError(
+        'HikCentral abrió Vehículo, pero no mostró la búsqueda ANPR. '
+        'Se guardó el estado real del módulo sin forzar una ruta incompatible.'
+    )
 
 
 def select_all_anpr_cameras(page, row, attempts=16):
@@ -526,10 +529,15 @@ def _download(config, day, credentials, folder, progress):
                                         args=[*window, '--window-size=1440,1000',
                                               '--disable-3d-apis', '--disable-webgl']) as browser:
             # The certificate pin was verified by check() immediately before opening Edge.
+            service_workers = (
+                'allow'
+                if str((config.get('binding') or {}).get('centre_id')) == 'eupuentealto'
+                else 'block'
+            )
             context = browser.new_context(ignore_https_errors=bool(settings.get('certificate_sha256')),
                                           timezone_id=config.get('timezone', 'America/Santiago'),
                                           viewport={'width':1440, 'height':1000}, accept_downloads=True,
-                                          service_workers='block')
+                                          service_workers=service_workers)
             page = context.new_page()
             progress['page'] = page
             watch_page(page, progress)
@@ -574,7 +582,7 @@ def _download(config, day, credentials, folder, progress):
                     raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
                 diagnostic_checkpoint(progress, 'sesion-iniciada')
                 progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
-                open_anpr_search(page, url)
+                open_anpr_search(page, url, progress)
                 diagnostic_checkpoint(progress, 'modulo-anpr')
                 progress['message'] = 'No se pudo seleccionar el origen de cámaras ANPR en HikCentral.'
                 root = ui_text(page, 'root').first
