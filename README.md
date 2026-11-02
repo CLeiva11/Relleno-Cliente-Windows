@@ -28,10 +28,10 @@ La versión publicada se instala con un solo comando:
 curl -fsSL https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/download/manjaro-v0.4.36/install-release-manjaro.sh | bash
 ```
 
-## Versión 0.4.37
+## Versión 0.4.38
 
 [Descargar el instalador para Windows desde Releases](https://github.com/CLeiva11/Relleno-Cliente-Windows/releases/latest).
-El instalador es `RellenoCliente-Setup-0.4.37.exe`. Consulte
+El instalador es `RellenoCliente-Setup-0.4.38.exe`. Consulte
 [ESTADO.md](ESTADO.md) para el estado de los artefactos de esta entrega. Incluye extracción ANPR diaria
 desde HikCentral y envío autenticado a Comprobaciones, carga de Excel originales,
 cola persistente y arranque con Windows. No necesita Python ni herramientas de

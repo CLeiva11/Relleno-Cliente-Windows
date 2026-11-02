@@ -120,6 +120,15 @@ class Outbox:
             db.execute('UPDATE batches SET ' + ','.join(columns) + ' WHERE batch_id=?',
                        [state, message, *values.values(), batch_id])
 
+    def retry_explicit(self, batch_id):
+        """Requeue an uncertain upload only after an explicit operator command."""
+        with self.connect() as db:
+            db.execute(
+                "UPDATE batches SET state='pending',next_attempt=0,message=? "
+                "WHERE batch_id=? AND state='uncertain'",
+                ('Reintento solicitado expresamente desde Comprobaciones.', batch_id),
+            )
+
     @contextmanager
     def sender_lock(self, name='sender.lock'):
         from relleno.locks import exclusive_byte

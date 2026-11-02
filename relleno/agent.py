@@ -92,6 +92,7 @@ def generate_anpr(config, day, outbox):
     from relleno.anpr_schedule import export_and_enqueue
 
     batch_id = export_and_enqueue(config, day, outbox)
+    outbox.retry_explicit(batch_id)
     outbox.drain(config)
     row = next((item for item in outbox.list() if item['batch_id'] == batch_id), None)
     if not row or row['state'] != 'delivered' or not row.get('receipt_id'):

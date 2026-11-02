@@ -77,6 +77,16 @@ class AnprTests(unittest.TestCase):
         self.assertEqual(self.box.list()[0]['state'], 'uncertain')
         self.assertEqual(self.session.post.call_count, 1)
 
+    def test_explicit_retry_requeues_an_uncertain_batch(self):
+        batch = self.add()
+        self.box.update(batch, 'uncertain', 'Revisar recepción')
+
+        self.box.retry_explicit(batch)
+
+        row = self.box.list()[0]
+        self.assertEqual(row['state'], 'pending')
+        self.assertEqual(row['next_attempt'], 0)
+
     def test_connect_failure_is_backed_off_and_persisted(self):
         self.add()
         self.session.post.side_effect = requests.ConnectTimeout()
