@@ -32,6 +32,8 @@ jobs:
             '```text' | Add-Content $env:GITHUB_STEP_SUMMARY
             Get-Content test-output.txt | Add-Content $env:GITHUB_STEP_SUMMARY
             '```' | Add-Content $env:GITHUB_STEP_SUMMARY
+            $failure = (Get-Content test-output.txt -Raw).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error file=.github/workflows/windows-installer.yml,line=27,title=Windows tests failed::$failure"
             exit $testExit
           }
       - name: Build executable and installer
