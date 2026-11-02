@@ -25,16 +25,15 @@ jobs:
       - name: Run tests
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Continue'
-          $PSNativeCommandUseErrorActionPreference = $false
-          python -m unittest discover -s tests -v 2>&1 | Tee-Object -FilePath test-output.txt
+          cmd /c "python -m unittest discover -s tests -v > test-output.txt 2>&1"
           $testExit = $LASTEXITCODE
+          Get-Content test-output.txt
           if ($testExit -ne 0) {
             "## Windows test failure" | Add-Content $env:GITHUB_STEP_SUMMARY
             '```text' | Add-Content $env:GITHUB_STEP_SUMMARY
             Get-Content test-output.txt | Add-Content $env:GITHUB_STEP_SUMMARY
             '```' | Add-Content $env:GITHUB_STEP_SUMMARY
-            $failure = (Get-Content test-output.txt -Raw).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $failure = ((Get-Content test-output.txt | Select-Object -Last 120) -join "`n").Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error file=.github/workflows/windows-installer.yml,line=27,title=Windows tests failed::$failure"
             exit $testExit
           }
