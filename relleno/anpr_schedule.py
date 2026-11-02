@@ -4,6 +4,29 @@ from relleno.hcp_export import export_day, export_key, pending_days, ExportError
 
 
 BLOCKED_RETRY_SECONDS = 6 * 60 * 60
+PUENTE_ALTO_BACKFILL = ('2026-10-01', '2026-11-01')
+
+
+def apply_required_backfill(config, outbox) -> bool:
+    """Schedule the requested Puente Alto recovery once without resending successes."""
+    binding = config.get('binding') or {}
+    if binding.get('centre_id') != 'eupuentealto':
+        return False
+    marker = 'eupuentealto-vehiculos-2026-10-01_2026-11-01-v1'
+    settings = config.setdefault('anpr', {})
+    if settings.get('required_backfill') == marker:
+        return False
+    current = settings.get('export_since')
+    settings['export_since'] = min(current, PUENTE_ALTO_BACKFILL[0]) if current else PUENTE_ALTO_BACKFILL[0]
+    settings['auto_export_enabled'] = True
+    settings['required_backfill'] = marker
+    with outbox.connect() as db:
+        db.execute(
+            "UPDATE export_jobs SET state='pending',attempts=0,next_attempt=0,message=? "
+            "WHERE day BETWEEN ? AND ? AND state IN ('blocked','exporting')",
+            ('Recuperación solicitada para octubre y 1 de noviembre', *PUENTE_ALTO_BACKFILL),
+        )
+    return True
 
 
 def export_and_enqueue(config, day, box=None):

@@ -84,6 +84,10 @@ def run():
                         config['alarms'] = {'enabled': True, 'run_hour': 3, 'adopted_legacy_installation': True}
                         from relleno.storage import save
                         save(config)
+                from relleno.anpr_schedule import apply_required_backfill
+                if apply_required_backfill(config, box):
+                    from relleno.storage import save
+                    save(config)
                 try:
                     watcher.scan(config)
                     scheduler.tick(config)

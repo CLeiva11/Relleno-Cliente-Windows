@@ -11,7 +11,7 @@ from relleno.hcp_export import (download, export_day, login_controls, pending_da
                                 date_range_contains_day, dismiss_hikcentral_overlays,
                                 preferred_anpr_module, select_all_anpr_cameras,
                                 wait_hikcentral_idle)
-from relleno.anpr_schedule import Scheduler
+from relleno.anpr_schedule import Scheduler, apply_required_backfill
 
 
 class ExportTests(unittest.TestCase):
@@ -232,6 +232,27 @@ class ExportTests(unittest.TestCase):
                 db.execute("INSERT INTO export_jobs(job_key,day,state) VALUES (?,?,'exporting')",(key,'2026-10-20'))
             Scheduler(box)
             self.assertEqual(box.export_jobs()[0]['state'], 'pending')
+
+    def test_puente_alto_backfill_reopens_only_failed_october_jobs(self):
+        from relleno.hcp_export import export_key
+        with tempfile.TemporaryDirectory() as directory:
+            box = Outbox(directory)
+            config = self.config()
+            config['binding']['centre_id'] = 'eupuentealto'
+            with box.connect() as db:
+                for day, state in [('2026-10-01', 'blocked'), ('2026-10-02', 'exported'), ('2026-09-30', 'blocked')]:
+                    db.execute(
+                        'INSERT INTO export_jobs(job_key,day,state,attempts,next_attempt) VALUES (?,?,?,?,?)',
+                        (export_key(config, date.fromisoformat(day)), day, state, 3, 99999),
+                    )
+            self.assertTrue(apply_required_backfill(config, box))
+            jobs = {job['day']: job for job in box.export_jobs()}
+            self.assertEqual(jobs['2026-10-01']['state'], 'pending')
+            self.assertEqual(jobs['2026-10-02']['state'], 'exported')
+            self.assertEqual(jobs['2026-09-30']['state'], 'blocked')
+            self.assertEqual(config['anpr']['export_since'], '2026-10-01')
+            self.assertTrue(config['anpr']['auto_export_enabled'])
+            self.assertFalse(apply_required_backfill(config, box))
 
     @patch('relleno.anpr_schedule.time.time', return_value=50000)
     @patch('relleno.anpr_schedule.pending_days', return_value=[date(2026,10,20)])
