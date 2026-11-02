@@ -68,6 +68,8 @@ def run():
             scheduler = Scheduler(box)
             from relleno.people_schedule import PeopleScheduler
             people_scheduler = PeopleScheduler(box)
+            from relleno.alarms import AlarmScheduler
+            alarm_scheduler = AlarmScheduler()
             log.info('Servicio de Comprobaciones iniciado')
             last_heartbeat = 0
             last_update_check = 0
@@ -76,10 +78,17 @@ def run():
                 if not config.get('binding'):
                     log.info('Servicio sin vinculación')
                     return
+                if 'alarms' not in config:
+                    from relleno.alarms import installation
+                    if installation(config)['ready']:
+                        config['alarms'] = {'enabled': True, 'run_hour': 3, 'adopted_legacy_installation': True}
+                        from relleno.storage import save
+                        save(config)
                 try:
                     watcher.scan(config)
                     scheduler.tick(config)
                     people_scheduler.tick(config)
+                    alarm_scheduler.tick(config)
                     box.drain(config)
                     from relleno.agent import heartbeat, poll_command, execute_command, complete_command
                     if time.time() - last_heartbeat >= 60:

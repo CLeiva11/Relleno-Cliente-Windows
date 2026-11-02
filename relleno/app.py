@@ -42,7 +42,7 @@ class App:
         self.status_text = tk.StringVar(value='Listo')
         tabs = ttk.Notebook(root)
         tabs.pack(fill='both', expand=True, padx=14, pady=14)
-        for name, builder in [('Inicio', self.home), ('ANPR', self.anpr), ('Cámaras', self.cameras), ('Conteos', self.counts)]:
+        for name, builder in [('Inicio', self.home), ('ANPR', self.anpr), ('Cámaras', self.cameras), ('Conteos', self.counts), ('Alarmas', self.alarms)]:
             frame = ttk.Frame(tabs, padding=14)
             tabs.add(frame, text=name)
             builder(frame)
@@ -342,6 +342,55 @@ class App:
             messagebox.showwarning('Revise la cola ANPR', '\n'.join(row['message'] or 'Pendiente de enviar' for row in pending[:6]))
         else:
             messagebox.showinfo('ANPR recibido', 'Los archivos tienen comprobante de recepción. Revise el resultado en Comprobaciones.')
+
+    def alarms(self, frame):
+        from relleno.alarms import installation, load_state, disable_legacy_tasks, run_now
+
+        ttk.Label(
+            frame,
+            text='Integra la extracción validada de listas negras vehiculares de HikCentral y rostros de iVMS. '
+                 'El cliente ejecuta una sola sincronización diaria y conserva la deduplicación por evento_uid.',
+            wraplength=980,
+        ).pack(anchor='w', pady=(0, 12))
+        status = ttk.Label(frame, wraplength=980)
+        status.pack(anchor='w', pady=8)
+        settings = self.config.get('alarms', {})
+        enabled = tk.BooleanVar(value=settings.get('enabled', False))
+        ttk.Checkbutton(frame, text='Recoger alarmas automáticamente cada día desde las 03:00', variable=enabled).pack(anchor='w', pady=6)
+
+        def refresh_status():
+            setup = installation(load())
+            state = load_state()
+            install_text = 'Instalación SDS detectada' if setup['ready'] else 'Instalación SDS pendiente'
+            detail = state.get('message') or 'Aún no se ejecuta desde este cliente'
+            status.config(text=f'{install_text}. {detail}.')
+
+        def persist():
+            setup = installation(self.config)
+            if enabled.get() and not setup['ready']:
+                raise ValueError('No se encontró una instalación SDS Alarmas configurada en C:\\SDSAlarmas\\sync.')
+            alarms = self.config.setdefault('alarms', {})
+            alarms.update(enabled=enabled.get(), run_hour=3)
+            if enabled.get():
+                removed = disable_legacy_tasks()
+                alarms['legacy_tasks_removed'] = removed
+            save(self.config)
+            from relleno.anpr_worker import autostart, start
+            autostart(bool(self.config.get('binding')))
+            if self.config.get('binding'):
+                start()
+            refresh_status()
+            self.status_text.set('Programación de alarmas guardada')
+
+        actions = ttk.Frame(frame)
+        actions.pack(fill='x', pady=8)
+        ttk.Button(actions, text='Guardar', command=lambda: self.guarded(persist)).pack(side='left')
+
+        def execute():
+            self.background('Recogiendo alarmas vehiculares y faciales…', lambda: run_now(load()), lambda _result: refresh_status())
+
+        ttk.Button(actions, text='Ejecutar ahora', command=execute).pack(side='left', padx=8)
+        refresh_status()
 
     def refresh_anpr(self, schedule=True):
         selection = self.anpr_table.selection()

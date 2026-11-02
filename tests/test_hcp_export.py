@@ -233,6 +233,26 @@ class ExportTests(unittest.TestCase):
             Scheduler(box)
             self.assertEqual(box.export_jobs()[0]['state'], 'pending')
 
+    @patch('relleno.anpr_schedule.time.time', return_value=50000)
+    @patch('relleno.anpr_schedule.pending_days', return_value=[date(2026,10,20)])
+    @patch('relleno.anpr_schedule.export_and_enqueue')
+    def test_blocked_window_is_retried_after_cooldown(self, export, days, clock):
+        from relleno.hcp_export import export_key
+        with tempfile.TemporaryDirectory() as directory:
+            box = Outbox(directory)
+            key = export_key(self.config(), date(2026,10,20))
+            with box.connect() as db:
+                db.execute(
+                    "INSERT INTO export_jobs(job_key,day,state,attempts,next_attempt,message) "
+                    "VALUES (?,?,'blocked',3,49999,'falló')",
+                    (key, '2026-10-20'),
+                )
+            Scheduler(box).tick(self.config())
+            export.assert_called_once()
+            job = box.export_jobs()[0]
+            self.assertEqual(job['state'], 'exporting')
+            self.assertEqual(job['attempts'], 1)
+
 
 class TypeIntoTests(unittest.TestCase):
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')

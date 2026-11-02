@@ -3,6 +3,9 @@ from relleno.anpr import Outbox
 from relleno.hcp_export import export_day, export_key, pending_days, ExportError
 
 
+BLOCKED_RETRY_SECONDS = 6 * 60 * 60
+
+
 def export_and_enqueue(config, day, box=None):
     box = box or Outbox()
     from datetime import date
@@ -34,6 +37,13 @@ class Scheduler:
         for day in days:
             key = export_key(config, day)
             job = jobs[key]
+            if job['state'] == 'blocked' and job['next_attempt'] <= time.time():
+                with self.outbox.connect() as db:
+                    db.execute(
+                        "UPDATE export_jobs SET state='pending',attempts=0,message=? WHERE job_key=?",
+                        ('Reintentando exportación bloqueada después del período de espera', key),
+                    )
+                job = dict(job, state='pending', attempts=0)
             if job['state'] != 'pending' or job['next_attempt'] > time.time():
                 continue
             with self.outbox.connect() as db:
@@ -44,7 +54,11 @@ class Scheduler:
                 message = str(exc) if isinstance(exc, ExportError) else 'No se completó la exportación. Revise HikCentral desde la aplicación.'
                 attempts = job['attempts'] + 1
                 blocked = attempts >= 3 or 'inicio de sesión' in message
+                next_attempt = (
+                    time.time() + BLOCKED_RETRY_SECONDS
+                    if blocked else time.time() + min(3600, 300*2**(attempts-1))
+                )
                 with self.outbox.connect() as db:
                     db.execute('UPDATE export_jobs SET state=?,next_attempt=?,message=? WHERE job_key=?',
-                               ('blocked' if blocked else 'pending', time.time()+min(3600, 300*2**(attempts-1)), message, key))
+                               ('blocked' if blocked else 'pending', next_attempt, message, key))
             break  # Process one window per cycle; pending windows survive restarts.
