@@ -23,7 +23,17 @@ jobs:
           python -m pip install -r requirements.txt
           choco install innosetup --no-progress -y
       - name: Run tests
-        run: python -m unittest discover -s tests -v
+        shell: powershell
+        run: |
+          python -m unittest discover -s tests -v 2>&1 | Tee-Object -FilePath test-output.txt
+          $testExit = $LASTEXITCODE
+          if ($testExit -ne 0) {
+            "## Windows test failure" | Add-Content $env:GITHUB_STEP_SUMMARY
+            '```text' | Add-Content $env:GITHUB_STEP_SUMMARY
+            Get-Content test-output.txt | Add-Content $env:GITHUB_STEP_SUMMARY
+            '```' | Add-Content $env:GITHUB_STEP_SUMMARY
+            exit $testExit
+          }
       - name: Build executable and installer
         shell: powershell
         env:
