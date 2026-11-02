@@ -238,6 +238,11 @@ def preferred_anpr_module(page):
     return visible_text(page, HIKCENTRAL_UI['module'][1:])
 
 
+def clickable_anpr_module(module):
+    """Use the quick-start ANPR entry when its overlay covers the top navigation."""
+    return module.last if module.count() > 1 else module.first
+
+
 def wait_hikcentral_idle(page, timeout=15000):
     """Wait for the dashboard loading mask that can discard early tab clicks."""
     loading = page.get_by_text(
@@ -263,8 +268,9 @@ def open_anpr_search(page, origin):
                 dismiss_hikcentral_overlays(page)
                 module = preferred_anpr_module(page)
         if module.count():
-            module.first.wait_for(timeout=15000)
-            module.first.click(force=True)
+            target = clickable_anpr_module(module)
+            target.wait_for(timeout=15000)
+            target.click(force=True)
             wait_hikcentral_idle(page)
             dismiss_hikcentral_overlays(page)
         else:

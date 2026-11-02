@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
                                 ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
+                                clickable_anpr_module,
                                 date_range_contains_day, dismiss_hikcentral_overlays,
                                 preferred_anpr_module, select_all_anpr_cameras,
                                 wait_hikcentral_idle)
@@ -44,6 +45,22 @@ class ExportTests(unittest.TestCase):
         self.assertIs(preferred_anpr_module(page), anpr)
         anpr.count.assert_called_once_with()
         vehicles.count.assert_not_called()
+
+    def test_quick_start_anpr_entry_wins_when_overlay_duplicates_navigation(self):
+        module = Mock()
+        module.count.return_value = 3
+
+        target = clickable_anpr_module(module)
+
+        self.assertIs(target, module.last)
+
+    def test_single_anpr_entry_keeps_normal_navigation(self):
+        module = Mock()
+        module.count.return_value = 1
+
+        target = clickable_anpr_module(module)
+
+        self.assertIs(target, module.first)
 
     @patch('relleno.hcp_export.visible_text')
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
