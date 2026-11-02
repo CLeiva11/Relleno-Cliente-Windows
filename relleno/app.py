@@ -19,6 +19,7 @@ from relleno.hcp_export import ExportError
 from relleno.date_ranges import completed_days
 from relleno.managed_hikcentral import apply as apply_managed_hikcentral
 from relleno.platform_support import IS_WINDOWS, open_path
+from relleno.inactivity import InactivityMinimizer
 
 
 class App:
@@ -35,6 +36,7 @@ class App:
         root.title('Relleno Cliente · Comprobaciones')
         root.geometry('1060x740')
         root.minsize(840, 620)
+        self.inactivity = InactivityMinimizer(root)
         self.events = queue.Queue()
         self.busy = False
         self.status_text = tk.StringVar(value='Listo')
