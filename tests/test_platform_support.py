@@ -8,6 +8,7 @@ from relleno import platform_support, storage
 
 
 class ManjaroSupportTests(unittest.TestCase):
+    @patch('relleno.platform_support.IS_WINDOWS', False)
     @patch('relleno.platform_support.shutil.which')
     def test_system_chromium_is_used(self, which):
         which.side_effect = lambda name: '/usr/bin/chromium' if name == 'chromium' else None
