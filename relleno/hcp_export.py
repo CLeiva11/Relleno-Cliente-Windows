@@ -258,6 +258,24 @@ def wait_hikcentral_idle(page, timeout=15000):
         pass
 
 
+def anpr_search_form_ready(page):
+    """Recognize search layouts that do not label their camera tree root."""
+    return bool(page.evaluate("""() => {
+        const visible = element => {
+            const style = getComputedStyle(element);
+            const box = element.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden'
+                && box.width > 0 && box.height > 0;
+        };
+        const controls = [...document.querySelectorAll('input, select')].filter(visible);
+        const actions = [...document.querySelectorAll('button, [role="button"]')].filter(visible);
+        const hasSearchAction = actions.some(element =>
+            /^(ir|buscar|search|go)$/i.test((element.innerText || element.textContent || '').trim())
+        );
+        return hasSearchAction && controls.length >= 2;
+    }"""))
+
+
 def open_anpr_search(page, origin, progress=None):
     """Open vehicle-passing search across legacy and application-registry layouts."""
     root = ui_text(page, 'root')
@@ -290,12 +308,16 @@ def open_anpr_search(page, origin, progress=None):
             search.first.click(force=True)
             page.wait_for_timeout(1500)
             wait_hikcentral_idle(page)
+            if progress is not None:
+                diagnostic_checkpoint(progress, f'busqueda-anpr-abierta-{_attempt + 1}')
         except Exception:
             pass
         try:
             root.first.wait_for(timeout=20000)
             return
         except Exception:
+            if anpr_search_form_ready(page):
+                return
             page.wait_for_timeout(1000)
 
     raise ExportError(
