@@ -103,6 +103,8 @@ class ExportTests(unittest.TestCase):
 
     def test_hikcentral_profiles_cover_localized_routes(self):
         self.assertIn('Vehicles', HIKCENTRAL_UI['module'])
+        self.assertIn('Búsqueda difusa de matrículas', HIKCENTRAL_UI['search_view'])
+        self.assertIn('Fuzzy License Plate Search', HIKCENTRAL_UI['search_view'])
         self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/anprVehicleTotal'))
         self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/VehicleLogsCount'))
 

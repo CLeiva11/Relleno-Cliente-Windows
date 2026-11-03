@@ -31,8 +31,12 @@ class ExportError(ValueError):
 # a different view or date range.
 HIKCENTRAL_UI = {
     'module': ('ANPR', 'Vehículo', 'Vehicle', 'Vehículos', 'Vehicles'),
-    'search_view': ('Búsqueda de paso de vehículos', 'Búsqueda de vehículos',
-                    'Vehicle Passing Search', 'Vehicle Search'),
+    'search_view': (
+        'Búsqueda de paso de vehículos', 'Búsqueda de vehículos',
+        'Búsqueda difusa de matrículas', 'Búsqueda difusa de placas',
+        'Vehicle Passing Search', 'Vehicle Search',
+        'Fuzzy License Plate Search', 'Fuzzy Plate Search',
+    ),
     'root': ('HikCentral Professional', 'Todos los recursos', 'All Resources', 'All Cameras'),
     'time': ('Tiempo', 'Hora', 'Time'),
     'custom': ('Personalizado', 'Personalizada', 'Custom', 'Customize'),
