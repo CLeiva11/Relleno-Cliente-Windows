@@ -32,10 +32,11 @@ class ExportError(ValueError):
 HIKCENTRAL_UI = {
     'module': ('ANPR', 'Vehículo', 'Vehicle', 'Vehículos', 'Vehicles'),
     'search_view': (
+        'Vehículo registrado', 'Vehículos registrados',
+        'Registro de vehículos', 'Registros de vehículos',
+        'Vehicle Record', 'Vehicle Records',
         'Búsqueda de paso de vehículos', 'Búsqueda de vehículos',
-        'Búsqueda difusa de matrículas', 'Búsqueda difusa de placas',
         'Vehicle Passing Search', 'Vehicle Search',
-        'Fuzzy License Plate Search', 'Fuzzy Plate Search',
     ),
     'root': ('HikCentral Professional', 'Todos los recursos', 'All Resources', 'All Cameras'),
     'time': ('Tiempo', 'Hora', 'Time'),
