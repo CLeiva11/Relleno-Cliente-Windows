@@ -6,7 +6,8 @@ from unittest.mock import Mock, patch
 
 from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
-                                ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
+                                ANPR_COUNT_RESPONSE, DIRECT_ANPR_RESOURCES,
+                                HIKCENTRAL_UI, ExportError,
                                 anpr_search_form_ready,
                                 download_bumblebee,
                                 clickable_anpr_module,
@@ -155,6 +156,14 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(query['SearchCriteria']['BeginTime'], '2026-11-05 03:00:00')
         self.assertEqual(query['SearchCriteria']['EndTime'], '2026-11-06 02:59:59')
         self.assertEqual(query['SearchCriteria']['ResourceIDs'], '46,56,51,61')
+
+    def test_puente_alto_direct_anpr_requests_all_authorized_resources(self):
+        self.assertIn('eupuentealto', DIRECT_ANPR_RESOURCES)
+        request = vehicle_logs_request(
+            date(2026, 11, 5), 'America/Santiago',
+            DIRECT_ANPR_RESOURCES['eupuentealto'],
+        )
+        self.assertEqual(request['VehicleLogsRequest']['SearchCriteria']['ResourceIDs'], '')
 
     @patch('relleno.hcp_adapters.BumblebeeVehicleLogsAdapter.extract')
     def test_direct_anpr_reuses_authenticated_browser_context(self, extract):

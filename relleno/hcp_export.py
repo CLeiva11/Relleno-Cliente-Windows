@@ -50,6 +50,10 @@ ANPR_COUNT_RESPONSE = re.compile(
 )
 DIRECT_ANPR_RESOURCES = {
     'euantofagasta': '46,56,51,61',
+    # Esta instalación no publica la aplicación ANPR en el menú, pero sí el
+    # servicio VehicleBiz. Un valor vacío solicita todos los recursos ANPR a
+    # los que la cuenta local tiene acceso.
+    'eupuentealto': '',
 }
 
 
@@ -723,7 +727,7 @@ def _download(config, day, credentials, folder, progress):
                 diagnostic_checkpoint(progress, 'sesion-iniciada')
                 centre_id = str((config.get('binding') or {}).get('centre_id') or '')
                 direct_resources = DIRECT_ANPR_RESOURCES.get(centre_id)
-                if direct_resources:
+                if centre_id in DIRECT_ANPR_RESOURCES:
                     progress['message'] = 'HikCentral no respondió a la consulta ANPR directa.'
                     result = download_bumblebee(
                         context, url, day, folder,
