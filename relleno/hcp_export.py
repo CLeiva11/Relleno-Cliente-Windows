@@ -30,7 +30,7 @@ class ExportError(ValueError):
 # the same workflow. Unknown layouts stop with diagnostics instead of exporting
 # a different view or date range.
 HIKCENTRAL_UI = {
-    'module': ('ANPR', 'Vehículo', 'Vehicle', 'Vehículos', 'Vehicles'),
+    'module': ('ANPR', 'LPR'),
     'search_view': (
         'Vehículo registrado', 'Vehículos registrados',
         'Registro de vehículos', 'Registros de vehículos',
@@ -236,11 +236,8 @@ def dismiss_hikcentral_overlays(page):
 
 
 def preferred_anpr_module(page):
-    """Prefer the explicit ANPR tab over adjacent vehicle catalogues."""
-    anpr = visible_text(page, ('ANPR',))
-    if anpr.count():
-        return anpr
-    return visible_text(page, HIKCENTRAL_UI['module'][1:])
+    """Select only ANPR/LPR; HikCentral's Vehicle module is a different app."""
+    return visible_text(page, HIKCENTRAL_UI['module'])
 
 
 def clickable_anpr_module(module):

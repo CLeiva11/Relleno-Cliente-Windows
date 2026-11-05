@@ -34,7 +34,7 @@ class ExportTests(unittest.TestCase):
         missing.count.return_value = 0
         anpr.count.return_value = 1
         anpr_queries = iter((missing, anpr))
-        visible.side_effect = lambda _page, labels: next(anpr_queries) if labels == ('ANPR',) else missing
+        visible.side_effect = lambda _page, labels: next(anpr_queries) if labels == HIKCENTRAL_UI['module'] else missing
         open_anpr_search(page, 'https://localhost')
         page.locator.assert_any_call('#navigation_addMenuBtn')
         applications.first.click.assert_called_once()
@@ -43,16 +43,14 @@ class ExportTests(unittest.TestCase):
         page.goto.assert_not_called()
 
     @patch('relleno.hcp_export.visible_text')
-    def test_anpr_tab_wins_when_vehicle_tab_appears_first(self, visible):
+    def test_vehicle_module_is_never_considered_anpr(self, visible):
         page = Mock()
-        anpr, vehicles = Mock(), Mock()
+        anpr = Mock()
         anpr.count.return_value = 1
-        vehicles.count.return_value = 1
-        visible.side_effect = lambda _page, labels: anpr if labels == ('ANPR',) else vehicles
+        visible.return_value = anpr
 
         self.assertIs(preferred_anpr_module(page), anpr)
-        anpr.count.assert_called_once_with()
-        vehicles.count.assert_not_called()
+        visible.assert_called_once_with(page, ('ANPR', 'LPR'))
 
     def test_quick_start_anpr_entry_wins_when_overlay_duplicates_navigation(self):
         module = Mock()
@@ -141,7 +139,8 @@ class ExportTests(unittest.TestCase):
         page.goto.assert_not_called()
 
     def test_hikcentral_profiles_cover_localized_routes(self):
-        self.assertIn('Vehicles', HIKCENTRAL_UI['module'])
+        self.assertEqual(HIKCENTRAL_UI['module'], ('ANPR', 'LPR'))
+        self.assertNotIn('Vehicle', HIKCENTRAL_UI['module'])
         self.assertIn('Vehículo registrado', HIKCENTRAL_UI['search_view'])
         self.assertIn('Vehicle Records', HIKCENTRAL_UI['search_view'])
         self.assertNotIn('Búsqueda difusa de matrículas', HIKCENTRAL_UI['search_view'])
