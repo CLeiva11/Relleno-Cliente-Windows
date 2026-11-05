@@ -84,6 +84,17 @@ class ExportTests(unittest.TestCase):
         page.wait_for_timeout.assert_called_once_with(500)
 
     @patch('relleno.hcp_export.visible_text')
+    def test_icon_only_overflow_is_clicked_after_last_visible_tab(self, visible):
+        page = Mock()
+        page.locator.return_value.filter.return_value.count.return_value = 0
+        visible.return_value.count.return_value = 0
+        page.evaluate.return_value = {'x': 992, 'y': 20}
+
+        self.assertTrue(reveal_navigation_overflow(page))
+
+        page.mouse.click.assert_called_once_with(992, 20)
+
+    @patch('relleno.hcp_export.visible_text')
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')
     @patch('relleno.hcp_export.ui_text')
     def test_unknown_vehicle_layout_is_not_forced_to_obsolete_route(self, ui, dismiss, visible):

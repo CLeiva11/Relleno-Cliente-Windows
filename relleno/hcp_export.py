@@ -266,6 +266,29 @@ def reveal_navigation_overflow(page):
         ellipsis.last.click(timeout=3000, force=True)
         page.wait_for_timeout(500)
         return True
+    # Some releases paint the ellipsis as an icon without accessible text or
+    # a stable id. Locate it immediately after the rightmost visible top tab.
+    point = page.evaluate("""labels => {
+        const normalized = value => (value || '').replace(/\\s+/g, ' ').trim();
+        const candidates = [...document.querySelectorAll('*')].map(element => {
+            const box = element.getBoundingClientRect();
+            return {element, box, text: normalized(element.textContent)};
+        }).filter(item => labels.includes(item.text)
+            && item.box.width > 10 && item.box.height > 10
+            && item.box.top >= 0 && item.box.bottom <= 70);
+        if (!candidates.length) return null;
+        candidates.sort((left, right) => right.box.right - left.box.right);
+        const box = candidates[0].box;
+        return {x: Math.min(innerWidth - 20, box.right + 35), y: box.top + box.height / 2};
+    }""", [
+        'Vídeo', 'Video', 'Análisis inteligente', 'Smart Analysis',
+        'Evento y alarma', 'Event and Alarm', 'Persona', 'Person',
+        'Dispositivo', 'Device', 'Mantenimiento', 'Maintenance',
+    ])
+    if isinstance(point, dict) and {'x', 'y'} <= point.keys():
+        page.mouse.click(point['x'], point['y'])
+        page.wait_for_timeout(500)
+        return True
     return False
 
 
