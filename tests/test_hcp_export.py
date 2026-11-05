@@ -8,11 +8,12 @@ from relleno.anpr import Outbox
 from relleno.hcp_export import (download, export_day, login_controls, pending_days,
                                 ANPR_COUNT_RESPONSE, HIKCENTRAL_UI, ExportError,
                                 anpr_search_form_ready,
+                                download_bumblebee,
                                 clickable_anpr_module,
                                 date_range_contains_day, dismiss_hikcentral_overlays,
                                 preferred_anpr_module, reveal_navigation_overflow,
                                 select_all_anpr_cameras,
-                                wait_hikcentral_idle)
+                                vehicle_logs_request, wait_hikcentral_idle)
 from relleno.anpr_schedule import Scheduler, apply_required_backfill
 
 
@@ -147,6 +148,32 @@ class ExportTests(unittest.TestCase):
         self.assertNotIn('Fuzzy License Plate Search', HIKCENTRAL_UI['search_view'])
         self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/anprVehicleTotal'))
         self.assertTrue(ANPR_COUNT_RESPONSE.search('/api/VehicleLogsCount'))
+
+    def test_direct_anpr_request_uses_santiago_day_and_known_resources(self):
+        request = vehicle_logs_request(date(2026, 11, 5), 'America/Santiago', '46,56,51,61')
+        query = request['VehicleLogsRequest']
+        self.assertEqual(query['SearchCriteria']['BeginTime'], '2026-11-05 03:00:00')
+        self.assertEqual(query['SearchCriteria']['EndTime'], '2026-11-06 02:59:59')
+        self.assertEqual(query['SearchCriteria']['ResourceIDs'], '46,56,51,61')
+
+    @patch('relleno.hcp_adapters.BumblebeeVehicleLogsAdapter.extract')
+    def test_direct_anpr_reuses_authenticated_browser_context(self, extract):
+        context = Mock()
+        count, records = Mock(), Mock()
+        context.request.fetch.side_effect = [count, records]
+        expected = (Path('direct.xlsx'), {'adapter': 'bumblebee-vehiclebiz-v0'})
+        extract.return_value = expected
+
+        result = download_bumblebee(
+            context, 'https://127.0.0.1', date(2026, 11, 5), Path('.'),
+            'America/Santiago', '46,56,51,61',
+        )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(context.request.fetch.call_count, 2)
+        self.assertIn('VehicleLogsCount', context.request.fetch.call_args_list[0].args[0])
+        self.assertIn('VehicleLogs?MT=GET', context.request.fetch.call_args_list[1].args[0])
+        extract.assert_called_once()
 
     def config(self):
         return {'binding':{'centre_id':'test-centre','agent_id':'test-agent','upload_url':'/api/anpr/'},

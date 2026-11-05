@@ -85,7 +85,7 @@ class BumblebeeVehicleLogsAdapter:
         return changed_index, changed_size
 
     @classmethod
-    def extract(cls, context, responses, day, folder):
+    def extract(cls, context, responses, day, folder, request_template=None):
         count_response = responses.get('count')
         list_response = responses.get('list')
         if not count_response or not list_response:
@@ -102,17 +102,22 @@ class BumblebeeVehicleLogsAdapter:
         if page_size < 1 or page_size > 1000:
             raise AdapterError('HikCentral informó una paginación ANPR inválida.')
 
-        try:
-            template = list_response.request.post_data_json
-        except Exception:
-            template = None
+        template = deepcopy(request_template) if isinstance(request_template, dict) else None
+        if template is None:
+            try:
+                template = list_response.request.post_data_json
+            except Exception:
+                template = None
         if not isinstance(template, dict):
             raise AdapterError('No se pudo reutilizar el cuerpo autenticado de VehicleLogs.')
 
-        headers = {
-            key: value for key, value in list_response.request.headers.items()
-            if key.casefold() in cls.safe_headers
-        }
+        if request_template is not None:
+            headers = {'content-type': 'application/json'}
+        else:
+            headers = {
+                key: value for key, value in list_response.request.headers.items()
+                if key.casefold() in cls.safe_headers
+            }
         records = []
         seen = set()
 

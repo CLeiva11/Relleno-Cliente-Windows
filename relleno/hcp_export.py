@@ -1,5 +1,5 @@
 """Download HikCentral's own Excel export using its installed web client."""
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -48,6 +48,74 @@ ANPR_COUNT_RESPONSE = re.compile(
     r'VehicleLogsCount|vehicle[^/?]*(?:count|total)|passing[^/?]*(?:count|total)|anpr[^/?]*(?:count|total)',
     re.I,
 )
+DIRECT_ANPR_RESOURCES = {
+    'euantofagasta': '46,56,51,61',
+}
+
+
+def vehicle_logs_request(day, timezone_name, resource_ids):
+    """Build the authenticated Bumblebee request using HikCentral's UTC window."""
+    zone = ZoneInfo(timezone_name)
+    start = datetime.combine(day, datetime.min.time(), zone).astimezone(timezone.utc)
+    next_start = datetime.combine(day + timedelta(days=1), datetime.min.time(), zone).astimezone(timezone.utc)
+    end = next_start - timedelta(seconds=1)
+    return {
+        'VehicleLogsRequest': {
+            'PageIndex': 1,
+            'PageSize': 100,
+            'SearchCriteria': {
+                'ResourceType': 0,
+                'RequestTimeType': 0,
+                'BeginTime': start.strftime('%Y-%m-%d %H:%M:%S'),
+                'EndTime': end.strftime('%Y-%m-%d %H:%M:%S'),
+                'Country': -1,
+                'LicensePlate': '',
+                'NoPlateLicense': 0,
+                'OwnerName': '',
+                'MarkStatus': -1,
+                'VehicleType': -1,
+                'VehicleBrand': -1,
+                'VehicleColor': -1,
+                'MinSpeed': -1,
+                'MaxSpeed': -1,
+                'VehicleDirectionType': -1,
+                'ListID': -1,
+                'CustomFieldList': '',
+                'PlateCategory': '',
+                'ResourceIDs': resource_ids,
+            },
+            'RequestSortType': {
+                'SortType': 1,
+                'QueryEndTimeControl': 1,
+                'FilterFrequencySign': 0,
+                'FilterFrequencyNum': 0,
+                'FilterFrequencyStage': 0,
+                'OrderByType': -1,
+                'OrderByTypeField': '',
+            },
+        },
+    }
+
+
+def download_bumblebee(context, origin, day, folder, timezone_name, resource_ids):
+    """Query ANPR directly with the browser's authenticated HikCentral session."""
+    from relleno.hcp_adapters import BumblebeeVehicleLogsAdapter
+
+    payload = vehicle_logs_request(day, timezone_name, resource_ids)
+    base = origin.rstrip('/') + '/ISAPI/Bumblebee/VehicleBiz/V0/LPR/'
+    options = {
+        'method': 'POST',
+        'headers': {'content-type': 'application/json'},
+        'data': json.dumps(payload, ensure_ascii=False),
+        'timeout': 120_000,
+        'fail_on_status_code': False,
+    }
+    count = context.request.fetch(base + 'VehicleLogsCount?MT=GET', **options)
+    records = context.request.fetch(base + 'VehicleLogs?MT=GET', **options)
+    return BumblebeeVehicleLogsAdapter.extract(
+        context, {'count': count, 'list': records}, day, folder,
+        request_template=payload,
+    )
 
 
 def export_key(config, day):
@@ -653,6 +721,16 @@ def _download(config, day, credentials, folder, progress):
                 except Exception:
                     raise ExportError('HikCentral no aceptó el inicio de sesión. No se repitió la contraseña.') from None
                 diagnostic_checkpoint(progress, 'sesion-iniciada')
+                centre_id = str((config.get('binding') or {}).get('centre_id') or '')
+                direct_resources = DIRECT_ANPR_RESOURCES.get(centre_id)
+                if direct_resources:
+                    progress['message'] = 'HikCentral no respondió a la consulta ANPR directa.'
+                    result = download_bumblebee(
+                        context, url, day, folder,
+                        config.get('timezone', 'America/Santiago'), direct_resources,
+                    )
+                    diagnostic_checkpoint(progress, 'anpr-directo-completado')
+                    return result
                 progress['message'] = 'No se encontró el módulo ANPR en la cuenta de HikCentral.'
                 open_anpr_search(page, url, progress)
                 diagnostic_checkpoint(progress, 'modulo-anpr')
