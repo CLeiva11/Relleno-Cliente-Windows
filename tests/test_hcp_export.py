@@ -10,7 +10,8 @@ from relleno.hcp_export import (download, export_day, login_controls, pending_da
                                 anpr_search_form_ready,
                                 clickable_anpr_module,
                                 date_range_contains_day, dismiss_hikcentral_overlays,
-                                preferred_anpr_module, select_all_anpr_cameras,
+                                preferred_anpr_module, reveal_navigation_overflow,
+                                select_all_anpr_cameras,
                                 wait_hikcentral_idle)
 from relleno.anpr_schedule import Scheduler, apply_required_backfill
 
@@ -22,14 +23,20 @@ class ExportTests(unittest.TestCase):
     def test_hidden_anpr_is_opened_from_application_registry(self, ui, dismiss, visible):
         from relleno.hcp_export import open_anpr_search
         page = Mock()
-        applications = page.locator.return_value.filter.return_value
+        applications = Mock()
         applications.count.return_value = 1
+        hidden_overflow = Mock()
+        hidden_overflow.count.return_value = 0
+        page.locator.side_effect = lambda selector: Mock(
+            filter=Mock(return_value=(applications if selector == '#navigation_addMenuBtn' else hidden_overflow))
+        )
         missing, anpr = Mock(), Mock()
         missing.count.return_value = 0
         anpr.count.return_value = 1
-        visible.side_effect = [missing, missing, anpr]
+        anpr_queries = iter((missing, anpr))
+        visible.side_effect = lambda _page, labels: next(anpr_queries) if labels == ('ANPR',) else missing
         open_anpr_search(page, 'https://localhost')
-        page.locator.assert_called_once_with('#navigation_addMenuBtn')
+        page.locator.assert_any_call('#navigation_addMenuBtn')
         applications.first.click.assert_called_once()
         anpr.first.wait_for.assert_called_once_with(timeout=15000)
         anpr.first.click.assert_called_once()
@@ -62,6 +69,19 @@ class ExportTests(unittest.TestCase):
         target = clickable_anpr_module(module)
 
         self.assertIs(target, module.first)
+
+    @patch('relleno.hcp_export.visible_text')
+    def test_hidden_vehicle_module_is_revealed_from_top_bar_overflow(self, visible):
+        page = Mock()
+        page.locator.return_value.filter.return_value.count.return_value = 0
+        ellipsis = Mock()
+        ellipsis.count.return_value = 1
+        visible.return_value = ellipsis
+
+        self.assertTrue(reveal_navigation_overflow(page))
+
+        ellipsis.last.click.assert_called_once_with(timeout=3000, force=True)
+        page.wait_for_timeout.assert_called_once_with(500)
 
     @patch('relleno.hcp_export.visible_text')
     @patch('relleno.hcp_export.dismiss_hikcentral_overlays')

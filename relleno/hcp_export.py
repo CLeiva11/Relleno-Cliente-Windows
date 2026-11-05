@@ -248,6 +248,27 @@ def clickable_anpr_module(module):
     return module.last if module.count() > 1 else module.first
 
 
+def reveal_navigation_overflow(page):
+    """Open applications hidden behind HikCentral's top-bar ellipsis."""
+    selectors = (
+        '#navigation_moreBtn',
+        '[id*="navigation"][id*="more" i]',
+        '[class*="navigation"][class*="more" i]',
+    )
+    for selector in selectors:
+        candidates = page.locator(selector).filter(visible=True)
+        if candidates.count():
+            candidates.first.click(timeout=3000, force=True)
+            page.wait_for_timeout(500)
+            return True
+    ellipsis = visible_text(page, ('...', '…'))
+    if ellipsis.count():
+        ellipsis.last.click(timeout=3000, force=True)
+        page.wait_for_timeout(500)
+        return True
+    return False
+
+
 def wait_hikcentral_idle(page, timeout=15000):
     """Wait for the dashboard loading mask that can discard early tab clicks."""
     loading = page.get_by_text(
@@ -284,6 +305,10 @@ def open_anpr_search(page, origin, progress=None):
         wait_hikcentral_idle(page)
         dismiss_hikcentral_overlays(page)
         module = preferred_anpr_module(page)
+        if not module.count():
+            if reveal_navigation_overflow(page):
+                dismiss_hikcentral_overlays(page)
+                module = preferred_anpr_module(page)
         if not module.count():
             applications = page.locator('#navigation_addMenuBtn').filter(visible=True)
             if applications.count():
