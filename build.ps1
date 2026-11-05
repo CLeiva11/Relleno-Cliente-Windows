@@ -8,7 +8,9 @@ $literal = ($passwords | ForEach-Object { "'" + ($_ -replace "'", "\\'") + "'" }
 Set-Content -Path $managedCredentials -Encoding UTF8 -Value "PASSWORDS = ($literal,)"
 $env:PYTHONPATH = (Join-Path $PSScriptRoot '.build-deps') + ';' + (Join-Path $PSScriptRoot '.automation-deps')
 try {
-    python -m PyInstaller --noconfirm --clean --windowed --name RellenoCliente --collect-all tzdata --collect-all playwright main.py
+    python -m PyInstaller --noconfirm --clean --windowed --name RellenoCliente `
+        --collect-all tzdata --collect-all playwright --collect-all openpyxl `
+        --hidden-import numbers --hidden-import fractions --hidden-import decimal main.py
     if ($LASTEXITCODE -ne 0) { throw 'Falló PyInstaller' }
     $compiler = Join-Path $PSScriptRoot '.tools\inno\ISCC.exe'
     if (-not (Test-Path $compiler)) { $compiler = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' }
