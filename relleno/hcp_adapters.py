@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import re
+import sys
 from urllib.parse import urlsplit
 
 
@@ -173,7 +174,19 @@ class BumblebeeVehicleLogsAdapter:
 
     @staticmethod
     def _write_excel(path, records):
-        from openpyxl import Workbook
+        # The generated ANPR workbook contains textual cells only. Prevent
+        # openpyxl from loading its optional NumPy bridge, which is unnecessary
+        # here and can be incomplete in frozen Windows builds.
+        missing = object()
+        previous_numpy = sys.modules.get('numpy', missing)
+        sys.modules['numpy'] = None
+        try:
+            from openpyxl import Workbook
+        finally:
+            if previous_numpy is missing:
+                sys.modules.pop('numpy', None)
+            else:
+                sys.modules['numpy'] = previous_numpy
 
         workbook = Workbook(write_only=True)
         sheet = workbook.create_sheet('ANPR')

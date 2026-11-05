@@ -1,6 +1,7 @@
 from datetime import date
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock
@@ -104,6 +105,18 @@ class BumblebeeAdapterTests(unittest.TestCase):
                 BumblebeeVehicleLogsAdapter.extract(
                     Mock(), {'count':count, 'list':first}, date(2026, 10, 21), Path(directory)
                 )
+
+    def test_excel_writer_restores_optional_numpy_module(self):
+        marker = object()
+        previous = sys.modules.get('numpy', marker)
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'anpr.xlsx'
+            BumblebeeVehicleLogsAdapter._write_excel(target, [])
+            self.assertTrue(target.is_file())
+        if previous is marker:
+            self.assertNotIn('numpy', sys.modules)
+        else:
+            self.assertIs(sys.modules.get('numpy'), previous)
 
 
 if __name__ == '__main__':
